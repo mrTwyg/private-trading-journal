@@ -13,6 +13,7 @@ contextBridge.exposeInMainWorld("journalApi", {
   backup: () => ipcRenderer.invoke("journal:backup"),
   restore: () => ipcRenderer.invoke("journal:restore"),
   dataLocation: () => ipcRenderer.invoke("journal:data-location"),
+  setWindowChrome: (theme) => ipcRenderer.invoke("window:set-chrome", theme),
   codexStatus: () => ipcRenderer.invoke("codex:status"),
   enableCodex: () => ipcRenderer.invoke("codex:enable"),
   disableCodex: () => ipcRenderer.invoke("codex:disable"),

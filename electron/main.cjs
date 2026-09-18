@@ -12,6 +12,13 @@ let store
 let databasePath
 let codexInbox
 
+const chromeThemes = {
+  midnight: { color: "#0b1016", symbolColor: "#edf2f7" },
+  obsidian: { color: "#070c0a", symbolColor: "#e9f5ef" },
+  violet: { color: "#0c0a1a", symbolColor: "#f3f1ff" },
+  alloy: { color: "#e5edf3", symbolColor: "#17212d" },
+}
+
 app.setName("Trading Journal")
 app.setAppUserModelId("local.tradingjournal.desktop")
 
@@ -24,6 +31,10 @@ function registerHandlers() {
   ipcMain.handle("journal:delete-metadata", (_event, type, id) => { store.deleteMetadata(type, id); codexInbox.refreshContext() })
   ipcMain.handle("journal:save-profile", (_event, profile) => { const result = store.saveProfile(profile); codexInbox.refreshContext(); return result })
   ipcMain.handle("journal:data-location", () => databasePath)
+  ipcMain.handle("window:set-chrome", (_event, theme) => {
+    const chrome = chromeThemes[theme] || chromeThemes.midnight
+    mainWindow?.setTitleBarOverlay({ ...chrome, height: 44 })
+  })
   ipcMain.handle("codex:status", () => codexInbox.status())
   ipcMain.handle("codex:enable", () => codexInbox.enable())
   ipcMain.handle("codex:disable", () => codexInbox.disable())
@@ -64,6 +75,8 @@ function createWindow() {
     minWidth: 900,
     minHeight: 640,
     backgroundColor: "#071017",
+    titleBarStyle: "hidden",
+    titleBarOverlay: { ...chromeThemes.midnight, height: 44 },
     show: false,
     autoHideMenuBar: true,
     webPreferences: {

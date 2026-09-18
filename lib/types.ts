@@ -195,6 +195,7 @@ export type JournalDesktopApi = {
   backup: () => Promise<DesktopOperationResult>
   restore: () => Promise<DesktopOperationResult>
   dataLocation: () => Promise<string>
+  setWindowChrome: (theme: Profile["theme"]) => Promise<void>
   codexStatus: () => Promise<CodexIntegrationStatus>
   enableCodex: () => Promise<CodexIntegrationStatus>
   disableCodex: () => Promise<CodexIntegrationStatus>

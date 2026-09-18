@@ -35,6 +35,8 @@ import {
   Link2,
   List,
   Pencil,
+  PanelLeftClose,
+  PanelLeftOpen,
   Plus,
   Search,
   Settings,
@@ -49,6 +51,7 @@ import {
   X,
 } from "lucide-react"
 import { toast } from "sonner"
+import { I18nProvider } from "react-aria-components/I18nProvider"
 
 import {
   AlertDialog,
@@ -63,6 +66,7 @@ import {
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
+import { DateTimeField } from "@/components/ui/date-time-field"
 import {
   Dialog,
   DialogContent,
@@ -348,12 +352,13 @@ function TradeFormDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[92vh] overflow-y-auto border-[var(--border-strong)] bg-[var(--surface-1)] sm:max-w-2xl">
+      <DialogContent className="trade-dialog sm:max-w-3xl">
         <DialogHeader>
           <DialogTitle>{trade ? "Edit trade" : importDraft ? "Review Codex draft" : "Log a trade"}</DialogTitle>
           <DialogDescription>{importDraft ? "Check the highlighted facts before adding this draft to your journal." : "Capture the decision while it is still fresh."}</DialogDescription>
         </DialogHeader>
-        <form onSubmit={submit} onPaste={handlePaste} className="space-y-5">
+        <form onSubmit={submit} onPaste={handlePaste} className="trade-form">
+          <div className="trade-form-scroll space-y-5">
           {importDraft && (importDraft.missingFields.length > 0 || importDraft.uncertainFields.length > 0) && (
             <div className="rounded-lg border border-amber-400/45 bg-amber-400/10 px-3 py-3 text-sm text-foreground" role="status">
               <strong>Needs review:</strong> {[...new Set([...importDraft.missingFields, ...importDraft.uncertainFields])].join(", ")}.
@@ -361,22 +366,22 @@ function TradeFormDialog({
           )}
           <div className="grid gap-4 sm:grid-cols-2">
             <Field label="Date and time" htmlFor="tradedAt">
-              <Input id="tradedAt" type="datetime-local" value={draft.tradedAt} onChange={(event) => setDraft({ ...draft, tradedAt: event.target.value })} required />
+              <DateTimeField id="tradedAt" value={draft.tradedAt} onChange={(tradedAt) => setDraft({ ...draft, tradedAt })} />
             </Field>
             <Field label="Instrument" htmlFor="symbol">
-              <Select value={draft.symbol || undefined} onValueChange={(value) => setDraft({ ...draft, symbol: value })}>
+              <Select aria-label="Instrument" value={draft.symbol || undefined} onValueChange={(value) => setDraft({ ...draft, symbol: value })}>
                 <SelectTrigger id="symbol" className="w-full"><SelectValue placeholder="Choose an instrument" /></SelectTrigger>
                 <SelectContent>{["NQ", "ES", "MNQ", "MES"].map((symbol) => <SelectItem key={symbol} value={symbol}>{symbol}</SelectItem>)}</SelectContent>
               </Select>
             </Field>
             <Field label="Direction" htmlFor="direction">
-              <Select value={draft.direction} onValueChange={(value) => setDraft({ ...draft, direction: value as TradeDirection })}>
+              <Select aria-label="Direction" value={draft.direction} onValueChange={(value) => setDraft({ ...draft, direction: value as TradeDirection })}>
                 <SelectTrigger id="direction" className="w-full"><SelectValue /></SelectTrigger>
                 <SelectContent><SelectItem value="long">Long</SelectItem><SelectItem value="short">Short</SelectItem></SelectContent>
               </Select>
             </Field>
             <Field label="Setup" htmlFor="setup">
-              <Select value={draft.setupId || "none"} onValueChange={(value) => setDraft({ ...draft, setupId: value === "none" ? "" : value })}>
+              <Select aria-label="Setup" value={draft.setupId || "none"} onValueChange={(value) => setDraft({ ...draft, setupId: value === "none" ? "" : value })}>
                 <SelectTrigger id="setup" className="w-full"><SelectValue placeholder="Choose a setup" /></SelectTrigger>
                 <SelectContent><SelectItem value="none">No setup</SelectItem>{setups.map((setup) => <SelectItem value={setup.id} key={setup.id}>{setup.name}</SelectItem>)}</SelectContent>
               </Select>
@@ -458,6 +463,7 @@ function TradeFormDialog({
           </Field>
 
           {error && <p role="alert" className="rounded-lg border border-[var(--loss-border)] bg-[var(--loss-soft)] px-3 py-2 text-sm text-[var(--loss)]">{error}</p>}
+          </div>
 
           <DialogFooter>
             <Button type="button" variant="ghost" onClick={() => onOpenChange(false)}>Cancel</Button>
@@ -586,7 +592,7 @@ function TradesView({ trades, onSelectTrade }: { trades: Trade[]; onSelectTrade:
     <section className="panel overflow-hidden">
       <div className="panel-header gap-3 max-sm:flex-col max-sm:items-stretch">
         <div className="relative max-w-md flex-1"><Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" /><Input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search symbol, setup or tag" className="pl-9" aria-label="Search trades" /></div>
-        <Select value={outcome} onValueChange={setOutcome}><SelectTrigger className="w-40"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="all">All outcomes</SelectItem><SelectItem value="win">Wins</SelectItem><SelectItem value="loss">Losses</SelectItem><SelectItem value="breakeven">Breakeven</SelectItem></SelectContent></Select>
+        <Select aria-label="Outcome filter" value={outcome} onValueChange={setOutcome}><SelectTrigger className="w-40"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="all">All outcomes</SelectItem><SelectItem value="win">Wins</SelectItem><SelectItem value="loss">Losses</SelectItem><SelectItem value="breakeven">Breakeven</SelectItem></SelectContent></Select>
       </div>
       <div>{filtered.length ? filtered.map((trade) => <TradeRow key={trade.id} trade={trade} onClick={() => onSelectTrade(trade)} />) : <div className="empty-state"><Search /><h3>No matching trades</h3><p>Try changing the search or outcome filter.</p></div>}</div>
     </section>
@@ -649,7 +655,7 @@ function SettingsView({ profile, setProfile, onSave, onBackup, onRestore, dataLo
       <h2 className="font-semibold">Profile preferences</h2><p className="mt-1 text-sm text-muted-foreground">New trades inherit these defaults. Historical currencies never change.</p>
       <form className="mt-6 space-y-5" onSubmit={async (event) => { event.preventDefault(); try { await onSave(); setSaved(true); setTimeout(() => setSaved(false), 1800) } catch (error) { toast.error(error instanceof Error ? error.message : "Could not save settings.") } }}>
         <Field label="Display name" htmlFor="display-name"><Input id="display-name" value={profile.displayName} onChange={(event) => setProfile({ ...profile, displayName: event.target.value })} /></Field>
-        <div className="grid gap-4 sm:grid-cols-2"><Field label="Default currency" htmlFor="currency"><Select value={profile.defaultCurrency} onValueChange={(value) => setProfile({ ...profile, defaultCurrency: value })}><SelectTrigger id="currency" className="w-full"><SelectValue /></SelectTrigger><SelectContent>{["GBP", "USD", "EUR", "CAD", "AUD"].map((currency) => <SelectItem key={currency} value={currency}>{currency}</SelectItem>)}</SelectContent></Select></Field><Field label="Timezone" htmlFor="timezone"><Input id="timezone" value={profile.timezone} onChange={(event) => setProfile({ ...profile, timezone: event.target.value })} /></Field></div>
+        <div className="grid gap-4 sm:grid-cols-2"><Field label="Default currency" htmlFor="currency"><Select aria-label="Default currency" value={profile.defaultCurrency} onValueChange={(value) => setProfile({ ...profile, defaultCurrency: value })}><SelectTrigger id="currency" className="w-full"><SelectValue /></SelectTrigger><SelectContent>{["GBP", "USD", "EUR", "CAD", "AUD"].map((currency) => <SelectItem key={currency} value={currency}>{currency}</SelectItem>)}</SelectContent></Select></Field><Field label="Timezone" htmlFor="timezone"><Input id="timezone" value={profile.timezone} onChange={(event) => setProfile({ ...profile, timezone: event.target.value })} /></Field></div>
         <div className="flex items-center gap-3"><Button type="submit">Save settings</Button>{saved && <span role="status" className="flex items-center gap-1 text-sm text-[var(--success)]"><Check className="size-4" /> Saved</span>}</div>
       </form>
       <div className="mt-8 border-t border-border pt-6">
@@ -665,11 +671,11 @@ function SettingsView({ profile, setProfile, onSave, onBackup, onRestore, dataLo
       <fieldset className="mt-5"><legend className="detail-label mb-3">Visual theme</legend><div className="grid gap-3 sm:grid-cols-2">{themeOptions.map((theme) => <button key={theme.id} type="button" aria-pressed={profile.theme === theme.id} onClick={() => setProfile({ ...profile, theme: theme.id })} className={cn("theme-choice", profile.theme === theme.id && "theme-choice-active")}><span className="theme-swatches" aria-hidden="true">{theme.swatches.map((color) => <span key={color} style={{ background: color }} />)}</span><span><strong>{theme.name}</strong><small>{theme.description}</small></span>{profile.theme === theme.id && <Check className="ml-auto size-4" />}</button>)}</div></fieldset>
       <fieldset className="mt-5"><legend className="detail-label mb-3">Accent colour</legend><div className="flex flex-wrap gap-2">{accentOptions.map((accent) => <button key={accent.id} type="button" aria-pressed={profile.accent === accent.id} onClick={() => setProfile({ ...profile, accent: accent.id })} className={cn("accent-choice", profile.accent === accent.id && "accent-choice-active")}><span style={{ background: accent.color }} aria-hidden="true" />{accent.name}</button>)}</div></fieldset>
       <div className="mt-5 grid gap-4 sm:grid-cols-2">
-        <Field label="Information density" htmlFor="density"><Select value={profile.density} onValueChange={(value) => setProfile({ ...profile, density: value as Profile["density"] })}><SelectTrigger id="density" className="w-full"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="comfortable">Comfortable</SelectItem><SelectItem value="compact">Compact</SelectItem></SelectContent></Select></Field>
-        <Field label="Corner style" htmlFor="corners"><Select value={profile.corners} onValueChange={(value) => setProfile({ ...profile, corners: value as Profile["corners"] })}><SelectTrigger id="corners" className="w-full"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="rounded">Rounded</SelectItem><SelectItem value="soft">Extra soft</SelectItem><SelectItem value="sharp">Technical</SelectItem></SelectContent></Select></Field>
-        <Field label="Interface type" htmlFor="font-mode"><Select value={profile.fontMode} onValueChange={(value) => setProfile({ ...profile, fontMode: value as Profile["fontMode"] })}><SelectTrigger id="font-mode" className="w-full"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="clean">Clean sans</SelectItem><SelectItem value="technical">Technical mono</SelectItem></SelectContent></Select></Field>
-        <Field label="Interface motion" htmlFor="motion"><Select value={profile.motion} onValueChange={(value) => setProfile({ ...profile, motion: value as Profile["motion"] })}><SelectTrigger id="motion" className="w-full"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="system">Follow Windows</SelectItem><SelectItem value="reduced">Reduced</SelectItem></SelectContent></Select></Field>
-        <Field label="Glow intensity" htmlFor="glow"><Select value={profile.glow} onValueChange={(value) => setProfile({ ...profile, glow: value as Profile["glow"] })}><SelectTrigger id="glow" className="w-full"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="off">Off</SelectItem><SelectItem value="subtle">Subtle</SelectItem><SelectItem value="bright">Bright</SelectItem></SelectContent></Select></Field>
+        <Field label="Information density" htmlFor="density"><Select aria-label="Information density" value={profile.density} onValueChange={(value) => setProfile({ ...profile, density: value as Profile["density"] })}><SelectTrigger id="density" className="w-full"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="comfortable">Comfortable</SelectItem><SelectItem value="compact">Compact</SelectItem></SelectContent></Select></Field>
+        <Field label="Corner style" htmlFor="corners"><Select aria-label="Corner style" value={profile.corners} onValueChange={(value) => setProfile({ ...profile, corners: value as Profile["corners"] })}><SelectTrigger id="corners" className="w-full"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="rounded">Rounded</SelectItem><SelectItem value="soft">Extra soft</SelectItem><SelectItem value="sharp">Technical</SelectItem></SelectContent></Select></Field>
+        <Field label="Interface type" htmlFor="font-mode"><Select aria-label="Interface type" value={profile.fontMode} onValueChange={(value) => setProfile({ ...profile, fontMode: value as Profile["fontMode"] })}><SelectTrigger id="font-mode" className="w-full"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="clean">Clean sans</SelectItem><SelectItem value="technical">Technical mono</SelectItem></SelectContent></Select></Field>
+        <Field label="Interface motion" htmlFor="motion"><Select aria-label="Interface motion" value={profile.motion} onValueChange={(value) => setProfile({ ...profile, motion: value as Profile["motion"] })}><SelectTrigger id="motion" className="w-full"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="system">Follow Windows</SelectItem><SelectItem value="reduced">Reduced</SelectItem></SelectContent></Select></Field>
+        <Field label="Glow intensity" htmlFor="glow"><Select aria-label="Glow intensity" value={profile.glow} onValueChange={(value) => setProfile({ ...profile, glow: value as Profile["glow"] })}><SelectTrigger id="glow" className="w-full"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="off">Off</SelectItem><SelectItem value="subtle">Subtle</SelectItem><SelectItem value="bright">Bright</SelectItem></SelectContent></Select></Field>
       </div>
       <div className="mt-5 flex items-center gap-3"><Button onClick={async () => { try { await onSave(); setSaved(true); setTimeout(() => setSaved(false), 1800) } catch (error) { toast.error(error instanceof Error ? error.message : "Could not save appearance.") } }}>Save appearance</Button>{saved && <span role="status" className="flex items-center gap-1 text-sm text-[var(--success)]"><Check className="size-4" /> Saved</span>}</div>
     </section>
@@ -705,6 +711,7 @@ function JournalWorkspace({ initial, api }: { initial: JournalBootstrap; api: Jo
   const [deleteTrade, setDeleteTrade] = useState<Trade | null>(null)
   const [dataLocation, setDataLocation] = useState("")
   const [codexStatus, setCodexStatus] = useState<CodexIntegrationStatus | null>(null)
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
 
   useEffect(() => {
     api.dataLocation().then(setDataLocation).catch(() => setDataLocation("Your private app data folder"))
@@ -721,7 +728,8 @@ function JournalWorkspace({ initial, api }: { initial: JournalBootstrap; api: Jo
     root.dataset.motion = profile.motion
     root.dataset.glow = profile.glow
     root.style.colorScheme = profile.theme === "alloy" ? "light" : "dark"
-  }, [profile.theme, profile.accent, profile.density, profile.corners, profile.fontMode, profile.motion, profile.glow])
+    api.setWindowChrome(profile.theme).catch(() => undefined)
+  }, [api, profile.theme, profile.accent, profile.density, profile.corners, profile.fontMode, profile.motion, profile.glow])
 
   useEffect(() => api.onCodexImport((receipt: CodexImportReceipt) => {
     api.load().then((data) => {
@@ -832,22 +840,26 @@ function JournalWorkspace({ initial, api }: { initial: JournalBootstrap; api: Jo
   const disableCodex = async () => { setCodexStatus(await api.disableCodex()); toast.success("Codex helper disabled") }
 
   return (
-    <div className="min-h-screen bg-background text-foreground">
+    <div className={cn("app-frame min-h-screen bg-background text-foreground", sidebarCollapsed && "sidebar-collapsed")}>
       <a href="#main-content" className="skip-link">Skip to journal</a>
+      <div className="app-titlebar">
+        <div className="titlebar-brand"><span className="brand-glyph">J</span><strong>Trading Journal</strong></div>
+        <div className="titlebar-status"><span className="status-pip bg-[var(--success)]" /><span>Private · saved locally</span></div>
+        <div className="window-controls-space" aria-hidden="true" />
+      </div>
       <aside className="app-sidebar">
-        <div className="brand-mark"><span className="brand-glyph">J</span><div><strong>Journal</strong><small>Private trading log</small></div></div>
-        <nav className="mt-8 space-y-1" aria-label="Main navigation">
-          {navItems.map((item) => { const Icon = item.icon; return <button key={item.id} type="button" onClick={() => setPage(item.id)} className={cn("nav-item", page === item.id && "nav-item-active")} aria-current={page === item.id ? "page" : undefined}><Icon /><span>{item.label}</span>{item.id === "inbox" && drafts.length > 0 && <span className="nav-count" aria-label={`${drafts.length} drafts`}>{drafts.length}</span>}</button> })}
+        <Button variant="ghost" size="icon-sm" className="sidebar-toggle" onClick={() => setSidebarCollapsed((value) => !value)} aria-label={sidebarCollapsed ? "Expand navigation" : "Collapse navigation"}>{sidebarCollapsed ? <PanelLeftOpen /> : <PanelLeftClose />}</Button>
+        <nav className="mt-3 space-y-1" aria-label="Main navigation">
+          {navItems.map((item) => { const Icon = item.icon; return <button key={item.id} type="button" title={sidebarCollapsed ? item.label : undefined} onClick={() => setPage(item.id)} className={cn("nav-item", page === item.id && "nav-item-active")} aria-current={page === item.id ? "page" : undefined}><Icon /><span>{item.label}</span>{item.id === "inbox" && drafts.length > 0 && <span className="nav-count" aria-label={`${drafts.length} drafts`}>{drafts.length}</span>}</button> })}
         </nav>
         <div className="sidebar-foot"><div className="account-chip"><span className="account-avatar">{profile.displayName.slice(0, 2).toUpperCase()}</span><span className="min-w-0"><strong className="truncate">{profile.displayName}</strong><small className="truncate">Offline · this computer</small></span><HardDrive className="ml-auto size-4 text-[var(--accent-cyan)]" aria-hidden="true" /></div></div>
       </aside>
 
       <div className="app-content">
         <header className="app-header">
-          <div><p className="eyebrow">{format(new Date(), "EEEE, d MMMM")}</p><h1>{pageCopy[page].title}</h1><p>{pageCopy[page].description}</p></div>
+          <div><p className="eyebrow">{format(new Date(), "EEEE, d MMMM")}</p><div className="flex items-baseline gap-3"><h1>{pageCopy[page].title}</h1><p>{pageCopy[page].description}</p></div></div>
           <Button size="lg" onClick={() => { setEditingTrade(null); setEditingDraft(null); setFormOpen(true) }}><Plus /> Log trade</Button>
         </header>
-        <div className="demo-banner"><span className="status-pip bg-[var(--success)]" /><span><strong>Saved locally</strong> — your journal stays on this computer and works without internet.</span></div>
         <main id="main-content" className="main-workspace" tabIndex={-1}>
           {page === "calendar" && <CalendarView trades={trades} currency={profile.defaultCurrency} onSelectDay={setSelectedDay} onSelectTrade={setSelectedTrade} />}
           {page === "trades" && <TradesView trades={trades} onSelectTrade={setSelectedTrade} />}
@@ -910,5 +922,5 @@ export function JournalApp() {
 
   if (error) return <div className="grid min-h-screen place-items-center bg-background p-6 text-foreground"><div className="panel max-w-lg p-6"><HardDrive className="size-8 text-[var(--accent-cyan)]" /><h1 className="mt-4 text-xl font-semibold">Desktop app required</h1><p className="mt-2 text-sm leading-6 text-muted-foreground">{error}</p></div></div>
   if (!initial || !window.journalApi) return <div className="grid min-h-screen place-items-center bg-background text-foreground"><div className="flex items-center gap-3 text-sm text-muted-foreground"><span className="status-pip animate-pulse bg-[var(--accent-cyan)]" /> Opening your private journal…</div></div>
-  return <JournalWorkspace initial={initial} api={window.journalApi} />
+  return <I18nProvider locale="en-GB"><JournalWorkspace initial={initial} api={window.journalApi} /></I18nProvider>
 }

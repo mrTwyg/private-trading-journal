@@ -8,7 +8,7 @@ It does not need an online account, a broker connection, Supabase, or a monthly 
 
 If someone sent you this app:
 
-1. Download **Trading-Journal-Setup-1.2.0-x64.exe**.
+1. Download **Trading-Journal-Setup-1.3.0-x64.exe**.
 2. Open it and follow the installation steps.
 3. Start **Trading Journal** from the desktop shortcut or Start menu.
 4. Open **Settings** and change the display name, currency, and timezone.
@@ -32,8 +32,8 @@ You can also open the Start menu, search for **Trading Journal**, right-click it
 
 A packaged release normally contains two Windows programs:
 
-- **Trading-Journal-Setup-1.2.0-x64.exe:** use this for the normal setup experience, desktop shortcut, and Start menu entry.
-- **Trading-Journal-Portable-1.2.0-x64.exe:** use this if you want to open the app without installing it. Your journal is still stored in your Windows app-data folder—not inside the portable program itself.
+- **Trading-Journal-Setup-1.3.0-x64.exe:** use this for the normal setup experience, desktop shortcut, and Start menu entry.
+- **Trading-Journal-Portable-1.3.0-x64.exe:** use this if you want to open the app without installing it. Your journal is still stored in your Windows app-data folder—not inside the portable program itself.
 
 The installer and portable program use the same journal data when they are run under the same Windows account.
 
@@ -61,6 +61,8 @@ Do not bypass the warning for a copy downloaded from an unknown website or sent 
 - Back up and restore the entire journal.
 - Accept dictated and screenshot-supported trade entries from Codex through an optional local helper.
 - Customise the interface with four themes, five accent choices, comfortable or compact density, three corner styles, clean or technical type, motion preferences, and glow intensity.
+- Use accessible, keyboard-friendly dropdowns plus separate calendar and 24-hour time controls.
+- Use the compact collapsible navigation and integrated Windows title bar without losing native snap, minimise, maximise, or close behaviour.
 
 ## Changing the journal appearance
 
