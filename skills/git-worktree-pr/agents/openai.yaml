@@ -1,0 +1,4 @@
+interface:
+  display_name: "Git Worktree PR"
+  short_description: "Build changes in a worktree and open a PR"
+  default_prompt: "Make this change in an isolated Git worktree and open a pull request for review."
