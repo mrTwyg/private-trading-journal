@@ -1,0 +1,9 @@
+interface:
+  display_name: "Trading Journal Log"
+  short_description: "Log dictated trades into your offline journal"
+  brand_color: "#5CE1E6"
+  default_prompt: "Use $trading-journal-log to log this trade from my description and attached screenshot."
+
+policy:
+  allow_implicit_invocation: true
+
