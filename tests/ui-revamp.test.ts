@@ -1,0 +1,31 @@
+import fs from "node:fs"
+import path from "node:path"
+import { describe, expect, it } from "vitest"
+
+const root = path.resolve(__dirname, "..")
+const read = (file: string) => fs.readFileSync(path.join(root, file), "utf8")
+
+describe("UI revamp architecture", () => {
+  it("uses React Aria without the retired component stacks", () => {
+    const manifest = JSON.parse(read("package.json"))
+    expect(manifest.dependencies["react-aria-components"]).toBeTruthy()
+    expect(manifest.dependencies["@internationalized/date"]).toBeTruthy()
+    expect(manifest.dependencies["radix-ui"]).toBeUndefined()
+    expect(manifest.dependencies["@base-ui/react"]).toBeUndefined()
+    expect(manifest.dependencies["@shadcn/react"]).toBeUndefined()
+  })
+
+  it("configures integrated native Windows title-bar controls", () => {
+    const main = read("electron/main.cjs")
+    expect(main).toContain('titleBarStyle: "hidden"')
+    expect(main).toContain("titleBarOverlay")
+    expect(main).toContain('ipcMain.handle("window:set-chrome"')
+  })
+
+  it("renders the precision shell and accessible date-time control", () => {
+    const app = read("app/journal-app.tsx")
+    expect(app).toContain('className="app-titlebar"')
+    expect(app).toContain("<DateTimeField")
+    expect(app).toContain('["NQ", "ES", "MNQ", "MES"]')
+  })
+})

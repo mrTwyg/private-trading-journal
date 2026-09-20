@@ -1,31 +1,17 @@
 "use client"
 
-import * as React from "react"
-import { CheckIcon } from "lucide-react"
-import { Checkbox as CheckboxPrimitive } from "radix-ui"
+import { Check } from "lucide-react"
+import { Checkbox as AriaCheckbox, type CheckboxProps as AriaCheckboxProps } from "react-aria-components"
 
 import { cn } from "@/lib/utils"
 
-function Checkbox({
-  className,
-  ...props
-}: React.ComponentProps<typeof CheckboxPrimitive.Root>) {
+type CheckboxProps = Omit<AriaCheckboxProps, "isSelected" | "onChange" | "children" | "className"> & { checked?: boolean; onCheckedChange?: (checked: boolean) => void; className?: string }
+
+function Checkbox({ checked, onCheckedChange, className, ...props }: CheckboxProps) {
   return (
-    <CheckboxPrimitive.Root
-      data-slot="checkbox"
-      className={cn(
-        "peer size-4 shrink-0 rounded-[4px] border border-input shadow-xs transition-shadow outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-50 aria-invalid:border-destructive aria-invalid:ring-destructive/20 data-[state=checked]:border-primary data-[state=checked]:bg-primary data-[state=checked]:text-primary-foreground dark:bg-input/30 dark:aria-invalid:ring-destructive/40 dark:data-[state=checked]:bg-primary",
-        className
-      )}
-      {...props}
-    >
-      <CheckboxPrimitive.Indicator
-        data-slot="checkbox-indicator"
-        className="grid place-content-center text-current transition-none"
-      >
-        <CheckIcon className="size-3.5" />
-      </CheckboxPrimitive.Indicator>
-    </CheckboxPrimitive.Root>
+    <AriaCheckbox data-slot="checkbox" isSelected={checked} onChange={onCheckedChange} className={({ isFocusVisible, isSelected, isDisabled }) => cn("grid size-4 shrink-0 place-items-center rounded-[0.28rem] border border-input bg-[var(--surface-2)] text-primary-foreground outline-none transition-colors", isSelected && "border-primary bg-primary", isFocusVisible && "ring-2 ring-ring/45 ring-offset-2 ring-offset-background", isDisabled && "cursor-not-allowed opacity-50", className)} {...props}>
+      {({ isSelected }) => isSelected ? <Check className="size-3" strokeWidth={3} /> : null}
+    </AriaCheckbox>
   )
 }
 
