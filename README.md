@@ -214,6 +214,12 @@ npm run package:windows
 
 Finished Windows packages are written to `release/`.
 
+### Automatic GitHub releases
+
+Every push to `main` checks the version in `package.json`. If a matching tag does not exist, GitHub Actions tests the merged code, builds both Windows editions, creates the `v<version>` tag, and publishes a GitHub Release with the installer and portable executable attached.
+
+For the next release, update the version in both `package.json` and `package-lock.json` on the feature branch. Once that pull request is merged, the release is created automatically. If the version was not changed, the workflow exits without replacing the existing release.
+
 Useful development commands:
 
 ```powershell
