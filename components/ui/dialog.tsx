@@ -17,7 +17,7 @@ function DialogContent({ className, children, showCloseButton = true }: { classN
   const { open, onOpenChange } = React.useContext(DialogContext)
   return (
     <ModalOverlay isOpen={open} onOpenChange={onOpenChange} isDismissable className="fixed inset-0 z-50 flex items-center justify-center bg-black/65 p-4 backdrop-blur-[6px] entering:animate-in entering:fade-in exiting:animate-out exiting:fade-out">
-      <Modal className="w-full max-w-2xl outline-none entering:animate-in entering:fade-in entering:zoom-in-95 exiting:animate-out exiting:fade-out exiting:zoom-out-95">
+      <Modal className="w-full max-w-[95vw] outline-none entering:animate-in entering:fade-in entering:zoom-in-95 exiting:animate-out exiting:fade-out exiting:zoom-out-95">
         <AriaDialog data-slot="dialog-content" className={cn("relative max-h-[92vh] overflow-hidden rounded-[calc(var(--radius)+0.35rem)] border border-border-strong bg-[var(--surface-1)] shadow-[0_34px_100px_rgb(0_0_0/55%)] outline-none", className)}>
           {children}
           {showCloseButton && <AriaButton slot="close" aria-label="Close" className="absolute right-4 top-4 z-10 grid size-8 place-items-center rounded-md text-muted-foreground outline-none hover:bg-accent hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring"><X className="size-4" /></AriaButton>}

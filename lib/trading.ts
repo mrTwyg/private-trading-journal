@@ -38,6 +38,13 @@ export function formatR(value: number) {
   return `${prefix}${value.toFixed(2)}R`
 }
 
+export function defaultTradeDateTime(iso?: string, selectedDay?: Date | null) {
+  const now = new Date()
+  const date = iso ? parseISO(iso) : selectedDay ? new Date(selectedDay) : now
+  if (!iso && selectedDay) date.setHours(now.getHours(), now.getMinutes(), 0, 0)
+  return format(date, "yyyy-MM-dd'T'HH:mm")
+}
+
 export function aggregateTrades(trades: Trade[]) {
   return trades.reduce(
     (summary, trade) => {

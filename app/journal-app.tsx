@@ -34,6 +34,7 @@ import {
   Italic,
   Link2,
   List,
+  Maximize2,
   Pencil,
   PanelLeftClose,
   PanelLeftOpen,
@@ -112,6 +113,7 @@ import {
   aggregateTrades,
   calculateRMultiple,
   calendarDays,
+  defaultTradeDateTime,
   formatMoney,
   formatR,
   periodLabel,
@@ -256,6 +258,7 @@ function TradeFormDialog({
   tags,
   trade,
   importDraft,
+  selectedDay,
   onSave,
 }: {
   open: boolean
@@ -265,16 +268,11 @@ function TradeFormDialog({
   tags: Tag[]
   trade?: Trade | null
   importDraft?: CodexDraft | null
+  selectedDay?: Date | null
   onSave: (draft: TradeFormValues, image: File | null, removeImage: boolean) => Promise<void>
 }) {
-  const localDateTime = (iso?: string) => {
-    const date = iso ? parseISO(iso) : new Date()
-    const pad = (value: number) => String(value).padStart(2, "0")
-    return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`
-  }
-
   const emptyDraft = (): TradeFormValues => ({
-    tradedAt: localDateTime(trade?.tradedAt ?? importDraft?.tradedAt ?? undefined),
+    tradedAt: defaultTradeDateTime(trade?.tradedAt ?? importDraft?.tradedAt ?? undefined, selectedDay),
     symbol: trade?.symbol ?? importDraft?.symbol ?? "",
     direction: trade?.direction ?? importDraft?.direction ?? "long",
     setupId: trade?.setupId ?? setups.find((setup) => setup.name.toLowerCase() === importDraft?.setupName?.toLowerCase())?.id ?? "",
@@ -306,7 +304,7 @@ function TradeFormDialog({
       setError("")
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, trade?.id, importDraft?.id])
+  }, [open, trade?.id, importDraft?.id, selectedDay])
 
   const handleImage = (file?: File) => {
     if (!file) return
@@ -708,6 +706,8 @@ function JournalWorkspace({ initial, api }: { initial: JournalBootstrap; api: Jo
   const [editingDraft, setEditingDraft] = useState<CodexDraft | null>(null)
   const [selectedTrade, setSelectedTrade] = useState<Trade | null>(null)
   const [selectedDay, setSelectedDay] = useState<Date | null>(null)
+  const [newTradeDay, setNewTradeDay] = useState<Date | null>(null)
+  const [zoomedImage, setZoomedImage] = useState<string | null>(null)
   const [deleteTrade, setDeleteTrade] = useState<Trade | null>(null)
   const [dataLocation, setDataLocation] = useState("")
   const [codexStatus, setCodexStatus] = useState<CodexIntegrationStatus | null>(null)
@@ -747,6 +747,14 @@ function JournalWorkspace({ initial, api }: { initial: JournalBootstrap; api: Jo
 
   const currentSelectedTrade = selectedTrade ? trades.find((trade) => trade.id === selectedTrade.id) ?? null : null
   const dayTrades = selectedDay ? tradesForDay(trades, selectedDay).sort((a, b) => b.tradedAt.localeCompare(a.tradedAt)) : []
+
+  const openNewTrade = (day: Date | null = null) => {
+    setEditingTrade(null)
+    setEditingDraft(null)
+    setNewTradeDay(day)
+    setSelectedDay(null)
+    setFormOpen(true)
+  }
 
   const saveTrade = async (draft: TradeFormValues, image: File | null, removeImage: boolean) => {
     const pnl = signedPnl(draft.outcome, draft.resultAmount)
@@ -858,7 +866,7 @@ function JournalWorkspace({ initial, api }: { initial: JournalBootstrap; api: Jo
       <div className="app-content">
         <header className="app-header">
           <div><p className="eyebrow">{format(new Date(), "EEEE, d MMMM")}</p><div className="flex items-baseline gap-3"><h1>{pageCopy[page].title}</h1><p>{pageCopy[page].description}</p></div></div>
-          <Button size="lg" onClick={() => { setEditingTrade(null); setEditingDraft(null); setFormOpen(true) }}><Plus /> Log trade</Button>
+          <Button size="lg" onClick={() => openNewTrade()}><Plus /> Log trade</Button>
         </header>
         <main id="main-content" className="main-workspace" tabIndex={-1}>
           {page === "calendar" && <CalendarView trades={trades} currency={profile.defaultCurrency} onSelectDay={setSelectedDay} onSelectTrade={setSelectedTrade} />}
@@ -869,12 +877,12 @@ function JournalWorkspace({ initial, api }: { initial: JournalBootstrap; api: Jo
         </main>
       </div>
 
-      <TradeFormDialog open={formOpen} onOpenChange={(open) => { setFormOpen(open); if (!open) { setEditingTrade(null); setEditingDraft(null) } }} profile={profile} setups={setups} tags={tags} trade={editingTrade} importDraft={editingDraft} onSave={saveTrade} />
+      <TradeFormDialog open={formOpen} onOpenChange={(open) => { setFormOpen(open); if (!open) { setEditingTrade(null); setEditingDraft(null); setNewTradeDay(null) } }} profile={profile} setups={setups} tags={tags} trade={editingTrade} importDraft={editingDraft} selectedDay={newTradeDay} onSave={saveTrade} />
 
       <Sheet open={Boolean(selectedDay)} onOpenChange={(open) => !open && setSelectedDay(null)}>
         <SheetContent className="w-full overflow-y-auto border-[var(--border-strong)] bg-[var(--surface-1)] sm:max-w-lg">
-          <SheetHeader><SheetTitle>{selectedDay ? format(selectedDay, "EEEE, d MMMM") : "Trading day"}</SheetTitle><SheetDescription>{dayTrades.length ? `${dayTrades.length} ${dayTrades.length === 1 ? "trade" : "trades"} · ${formatMoney(aggregateTrades(dayTrades).pnl, profile.defaultCurrency)}` : "No trades logged."}</SheetDescription></SheetHeader>
-          <div className="border-t border-border">{dayTrades.map((trade) => <TradeRow key={trade.id} trade={trade} onClick={() => setSelectedTrade(trade)} />)}{!dayTrades.length && <div className="empty-state"><CalendarDays /><h3>Clear day</h3><p>No trades were logged on this date.</p><Button onClick={() => { setSelectedDay(null); setFormOpen(true) }}><Plus /> Log a trade</Button></div>}</div>
+          <SheetHeader><SheetTitle>{selectedDay ? format(selectedDay, "EEEE, d MMMM") : "Trading day"}</SheetTitle><SheetDescription>{dayTrades.length ? `${dayTrades.length} ${dayTrades.length === 1 ? "trade" : "trades"} · ${formatMoney(aggregateTrades(dayTrades).pnl, profile.defaultCurrency)}` : "No trades logged."}</SheetDescription>{selectedDay && <Button className="mt-4" onClick={() => openNewTrade(selectedDay)}><Plus /> Log a trade for this day</Button>}</SheetHeader>
+          <div className="border-t border-border">{dayTrades.map((trade) => <TradeRow key={trade.id} trade={trade} onClick={() => setSelectedTrade(trade)} />)}{!dayTrades.length && <div className="empty-state"><CalendarDays /><h3>Clear day</h3><p>No trades were logged on this date.</p></div>}</div>
         </SheetContent>
       </Sheet>
 
@@ -888,12 +896,19 @@ function JournalWorkspace({ initial, api }: { initial: JournalBootstrap; api: Jo
               {currentSelectedTrade.setupDescription && <div><p className="detail-label mb-2">Setup description</p><p className="rounded-lg border border-border bg-[var(--surface-2)] p-3 text-sm leading-6">{currentSelectedTrade.setupDescription}</p></div>}
               {currentSelectedTrade.tags.length > 0 && <div><p className="detail-label mb-2">Tags</p><div className="flex flex-wrap gap-2">{currentSelectedTrade.tags.map((tag) => <Badge variant="outline" key={tag.id}>{tag.name}</Badge>)}</div></div>}
               <div><p className="detail-label mb-2">Thought process</p><div className="prose-note" dangerouslySetInnerHTML={{ __html: currentSelectedTrade.noteHtml || "<p>No notes added.</p>" }} /></div>
-              {currentSelectedTrade.image?.url && <div><p className="detail-label mb-2">Screenshot</p><img src={currentSelectedTrade.image.url} alt={`Chart attached to ${currentSelectedTrade.symbol} trade`} className="w-full rounded-lg border border-border" /></div>}
+              {currentSelectedTrade.image?.url && <div><p className="detail-label mb-2">Screenshot</p><button type="button" className="group relative block w-full cursor-zoom-in overflow-hidden rounded-lg border border-border outline-none focus-visible:ring-2 focus-visible:ring-ring" onClick={() => setZoomedImage(currentSelectedTrade.image?.url ?? null)} aria-label="Enlarge trade screenshot"><img src={currentSelectedTrade.image.url} alt={`Chart attached to ${currentSelectedTrade.symbol} trade`} className="w-full transition group-hover:opacity-80" /><span className="absolute bottom-3 right-3 flex items-center gap-2 rounded-md bg-black/75 px-3 py-2 text-xs font-medium text-white opacity-0 transition group-hover:opacity-100 group-focus-visible:opacity-100"><Maximize2 className="size-4" /> Enlarge</span></button></div>}
               <div className="flex flex-wrap gap-2 border-t border-border pt-5"><Button variant="outline" onClick={() => { setEditingTrade(currentSelectedTrade); setSelectedTrade(null); setFormOpen(true) }}><Pencil /> Edit</Button><Button variant="outline" onClick={() => void duplicateTrade(currentSelectedTrade)}><Copy /> Duplicate</Button><Button variant="ghost" className="ml-auto text-[var(--loss)] hover:bg-[var(--loss-soft)] hover:text-[var(--loss)]" onClick={() => setDeleteTrade(currentSelectedTrade)}><Trash2 /> Delete</Button></div>
             </div>
           </>}
         </SheetContent>
       </Sheet>
+
+      <Dialog open={Boolean(zoomedImage)} onOpenChange={(open) => !open && setZoomedImage(null)}>
+        <DialogContent className="w-fit max-w-[95vw] border-0 bg-black p-2" showCloseButton>
+          <DialogHeader className="sr-only"><DialogTitle>Trade screenshot</DialogTitle><DialogDescription>Enlarged trade chart image</DialogDescription></DialogHeader>
+          {zoomedImage && <img src={zoomedImage} alt="Enlarged trade chart" className="max-h-[88vh] max-w-[90vw] object-contain" />}
+        </DialogContent>
+      </Dialog>
 
       <AlertDialog open={Boolean(deleteTrade)} onOpenChange={(open) => !open && setDeleteTrade(null)}>
         <AlertDialogContent><AlertDialogHeader><AlertDialogTitle>Delete this trade?</AlertDialogTitle><AlertDialogDescription>This permanently removes the trade, its notes, tags, and screenshot. This cannot be undone.</AlertDialogDescription></AlertDialogHeader><AlertDialogFooter><AlertDialogCancel>Keep trade</AlertDialogCancel><AlertDialogAction variant="destructive" onClick={() => deleteTrade && removeTrade(deleteTrade)}>Delete trade</AlertDialogAction></AlertDialogFooter></AlertDialogContent>
