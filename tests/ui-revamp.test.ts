@@ -34,4 +34,8 @@ describe("UI revamp architecture", () => {
     expect(app).toContain("Log a trade for this day")
     expect(app).toContain('aria-label="Enlarge trade screenshot"')
   })
+
+  it("centres dialog content inside the wide modal viewport", () => {
+    expect(read("components/ui/dialog.tsx")).toContain('className={cn("relative mx-auto')
+  })
 })
