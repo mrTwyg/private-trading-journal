@@ -29,8 +29,7 @@ jobs:
           $version = node -p "require('./package.json').version"
           $tag = "v$version"
           git fetch --tags --force
-          git rev-parse --verify --quiet "refs/tags/$tag"
-          $exists = $LASTEXITCODE -eq 0
+          $exists = [bool](git tag --list $tag)
           "version=$version" >> $env:GITHUB_OUTPUT
           "tag=$tag" >> $env:GITHUB_OUTPUT
           "should_release=$(!$exists)" >> $env:GITHUB_OUTPUT
