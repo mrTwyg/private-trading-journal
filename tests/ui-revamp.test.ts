@@ -28,4 +28,10 @@ describe("UI revamp architecture", () => {
     expect(app).toContain("<DateTimeField")
     expect(app).toContain('["NQ", "ES", "MNQ", "MES"]')
   })
+
+  it("keeps calendar-date logging and screenshot zoom discoverable", () => {
+    const app = read("app/journal-app.tsx")
+    expect(app).toContain("Log a trade for this day")
+    expect(app).toContain('aria-label="Enlarge trade screenshot"')
+  })
 })

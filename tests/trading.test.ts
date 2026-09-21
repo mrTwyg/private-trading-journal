@@ -1,13 +1,16 @@
-import { describe, expect, it } from "vitest"
+import { afterEach, describe, expect, it, vi } from "vitest"
 import { format, startOfWeek } from "date-fns"
 
 import {
   aggregateTrades,
   calculateRMultiple,
   calendarDays,
+  defaultTradeDateTime,
   signedPnl,
 } from "../lib/trading"
 import type { Trade } from "../lib/types"
+
+afterEach(() => vi.useRealTimers())
 
 describe("trade result calculations", () => {
   it("turns the manually selected outcome into a signed P&L", () => {
@@ -51,6 +54,12 @@ describe("trade result calculations", () => {
 })
 
 describe("calendar ranges", () => {
+  it("uses a selected calendar day with the current local time for a new trade", () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date(2026, 8, 21, 14, 35))
+    expect(defaultTradeDateTime(undefined, new Date(2026, 9, 5))).toBe("2026-10-05T14:35")
+  })
+
   it("returns seven Monday-first days for a week", () => {
     const anchor = new Date("2026-09-18T12:00:00")
     const days = calendarDays(anchor, "week")
