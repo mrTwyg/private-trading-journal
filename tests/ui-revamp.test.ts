@@ -36,6 +36,15 @@ describe("UI revamp architecture", () => {
   })
 
   it("centres dialog content inside the wide modal viewport", () => {
-    expect(read("components/ui/dialog.tsx")).toContain('className={cn("relative mx-auto')
+    const dialog = read("components/ui/dialog.tsx")
+    expect(dialog).toContain('className="flex w-full max-w-[95vw] justify-center')
+    expect(dialog).toContain('className={cn("relative mx-auto')
+  })
+
+  it("supports separate account calendars and defaults new trades to the selected account", () => {
+    const app = read("app/journal-app.tsx")
+    expect(app).toContain('selectedAccountId !== "all" ? selectedAccountId')
+    expect(app).toContain('<Field label="Account"')
+    expect(app).toContain('trades.filter((trade) => trade.accountId === selectedAccountId)')
   })
 })

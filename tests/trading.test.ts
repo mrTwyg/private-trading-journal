@@ -28,6 +28,9 @@ describe("trade result calculations", () => {
   it("aggregates monetary and outcome totals", () => {
     const base = {
       id: "1",
+      accountId: "default-account",
+      accountName: "Default Account",
+      accountColor: "cyan",
       tradedAt: "2026-09-18T10:00:00.000Z",
       symbol: "NQ1!",
       direction: "long",
