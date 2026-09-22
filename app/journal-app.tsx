@@ -150,7 +150,7 @@ const outcomeStyle: Record<TradeOutcome, string> = {
 const accountColors: Record<string, string> = { cyan: "#5ce1e6", emerald: "#53e3a6", violet: "#a99cff", amber: "#f3bb55" }
 
 function AccountSelect({ accounts, value, onChange, includeAll = true, id }: { accounts: TradingAccount[]; value: string; onChange: (value: string) => void; includeAll?: boolean; id?: string }) {
-  return <Select aria-label="Trading account" value={value} onValueChange={onChange}><SelectTrigger id={id} className="w-full sm:w-52"><SelectValue placeholder="Choose account" /></SelectTrigger><SelectContent>{includeAll && <SelectItem value="all">All accounts</SelectItem>}{accounts.filter((account) => !account.archived || account.id === value).map((account) => <SelectItem key={account.id} value={account.id}><span className="flex items-center gap-2"><span className="status-pip" style={{ background: accountColors[account.color] }} />{account.name}</span></SelectItem>)}</SelectContent></Select>
+  return <Select aria-label="Trading account" value={value} onValueChange={onChange}><SelectTrigger id={id} className="w-full sm:w-52"><SelectValue placeholder="Choose account" /></SelectTrigger><SelectContent>{includeAll && <SelectItem value="all">All accounts</SelectItem>}{accounts.filter((account) => !account.archived || account.id === value).map((account) => <SelectItem key={account.id} value={account.id} textValue={account.name}><span className="flex items-center gap-2"><span className="status-pip" style={{ background: accountColors[account.color] }} />{account.name}</span></SelectItem>)}</SelectContent></Select>
 }
 
 function OutcomeIcon({ outcome, className }: { outcome: TradeOutcome; className?: string }) {
@@ -546,7 +546,7 @@ function CalendarView({
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
         <StatCard label={`${view === "week" ? "Weekly" : "Monthly"} net P&L`} value={formatMoney(summary.pnl, currency)} meta={`${summary.count} ${summary.count === 1 ? "trade" : "trades"}`} tone={summary.pnl > 0 ? "positive" : summary.pnl < 0 ? "negative" : "neutral"} />
         <StatCard label="Total R" value={formatR(summary.r)} meta="Risk-adjusted return" tone={summary.r > 0 ? "positive" : summary.r < 0 ? "negative" : "neutral"} />
-        <StatCard label="Win rate" value={`${winRate.toFixed(0)}%`} meta={`${summary.win}W · ${summary.loss}L · ${summary.breakeven}B/E`} />
+        <StatCard label="Win rate" value={`${winRate.toFixed(0)}%`} meta={`${summary.count} ${summary.count === 1 ? "trade" : "trades"} · ${summary.win}W · ${summary.loss}L · ${summary.breakeven}B/E`} />
         <StatCard label="Today" value={formatMoney(aggregateTrades(todayTrades).pnl, currency)} meta={`${todayTrades.length} ${todayTrades.length === 1 ? "trade" : "trades"}`} tone={aggregateTrades(todayTrades).pnl > 0 ? "positive" : aggregateTrades(todayTrades).pnl < 0 ? "negative" : "neutral"} />
       </div>
 

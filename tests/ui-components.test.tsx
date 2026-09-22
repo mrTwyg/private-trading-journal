@@ -1,8 +1,8 @@
 // @vitest-environment jsdom
 
-import { fireEvent, render, screen } from "@testing-library/react"
+import { cleanup, fireEvent, render, screen } from "@testing-library/react"
 import { I18nProvider } from "react-aria-components/I18nProvider"
-import { beforeAll, describe, expect, it, vi } from "vitest"
+import { afterEach, beforeAll, describe, expect, it, vi } from "vitest"
 
 import { DateTimeField } from "@/components/ui/date-time-field"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
@@ -14,6 +14,7 @@ beforeAll(() => {
   window.matchMedia ||= (() => ({ matches: false, addEventListener() {}, removeEventListener() {} })) as typeof window.matchMedia
   Element.prototype.scrollIntoView ||= () => undefined
 })
+afterEach(cleanup)
 
 describe("React Aria journal controls", () => {
   it("opens the keyboard-ready instrument list", () => {
@@ -25,6 +26,18 @@ describe("React Aria journal controls", () => {
     )
     fireEvent.click(screen.getByRole("button"))
     expect(screen.getAllByRole("option").map((option) => option.textContent)).toEqual(expect.arrayContaining(["NQ", "ES", "MNQ", "MES"]))
+  })
+
+  it("shows a styled option's label instead of its stored id", () => {
+    render(
+      <Select aria-label="Trading account" value="a1193f42-d896-45b7" onValueChange={() => undefined}>
+        <SelectTrigger><SelectValue /></SelectTrigger>
+        <SelectContent><SelectItem value="a1193f42-d896-45b7" textValue="live"><span><i />live</span></SelectItem></SelectContent>
+      </Select>,
+    )
+    const trigger = screen.getByRole("button", { name: /Trading account/ })
+    expect(trigger.textContent).toContain("live")
+    expect(trigger.textContent).not.toContain("a1193f42")
   })
 
   it("opens a locale-aware calendar and keeps time separate", () => {
