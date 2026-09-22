@@ -104,6 +104,7 @@ import type {
   Setup,
   Tag,
   Trade,
+  TradingAccount,
   TradeDirection,
   TradeDraft as CodexDraft,
   TradeFormValues,
@@ -144,6 +145,12 @@ const outcomeStyle: Record<TradeOutcome, string> = {
   win: "border-[var(--success-border)] bg-[var(--success-soft)] text-[var(--success)]",
   loss: "border-[var(--loss-border)] bg-[var(--loss-soft)] text-[var(--loss)]",
   breakeven: "border-border bg-secondary text-muted-foreground",
+}
+
+const accountColors: Record<string, string> = { cyan: "#5ce1e6", emerald: "#53e3a6", violet: "#a99cff", amber: "#f3bb55" }
+
+function AccountSelect({ accounts, value, onChange, includeAll = true, id }: { accounts: TradingAccount[]; value: string; onChange: (value: string) => void; includeAll?: boolean; id?: string }) {
+  return <Select aria-label="Trading account" value={value} onValueChange={onChange}><SelectTrigger id={id} className="w-full sm:w-52"><SelectValue placeholder="Choose account" /></SelectTrigger><SelectContent>{includeAll && <SelectItem value="all">All accounts</SelectItem>}{accounts.filter((account) => !account.archived || account.id === value).map((account) => <SelectItem key={account.id} value={account.id}><span className="flex items-center gap-2"><span className="status-pip" style={{ background: accountColors[account.color] }} />{account.name}</span></SelectItem>)}</SelectContent></Select>
 }
 
 function OutcomeIcon({ outcome, className }: { outcome: TradeOutcome; className?: string }) {
@@ -254,6 +261,8 @@ function TradeFormDialog({
   open,
   onOpenChange,
   profile,
+  accounts,
+  selectedAccountId,
   setups,
   tags,
   trade,
@@ -264,6 +273,8 @@ function TradeFormDialog({
   open: boolean
   onOpenChange: (open: boolean) => void
   profile: Profile
+  accounts: TradingAccount[]
+  selectedAccountId: string
   setups: Setup[]
   tags: Tag[]
   trade?: Trade | null
@@ -272,6 +283,7 @@ function TradeFormDialog({
   onSave: (draft: TradeFormValues, image: File | null, removeImage: boolean) => Promise<void>
 }) {
   const emptyDraft = (): TradeFormValues => ({
+    accountId: trade?.accountId ?? (selectedAccountId !== "all" ? selectedAccountId : accounts.find((account) => !account.archived)?.id ?? ""),
     tradedAt: defaultTradeDateTime(trade?.tradedAt ?? importDraft?.tradedAt ?? undefined, selectedDay),
     symbol: trade?.symbol ?? importDraft?.symbol ?? "",
     direction: trade?.direction ?? importDraft?.direction ?? "long",
@@ -304,7 +316,7 @@ function TradeFormDialog({
       setError("")
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, trade?.id, importDraft?.id, selectedDay])
+  }, [open, trade?.id, importDraft?.id, selectedDay, selectedAccountId])
 
   const handleImage = (file?: File) => {
     if (!file) return
@@ -328,11 +340,13 @@ function TradeFormDialog({
       ?.getAsFile()
     if (!pastedImage) return
     event.preventDefault()
+    if (!draft.accountId) return setError("Choose an account.")
     handleImage(pastedImage)
   }
 
   const submit = async (event: FormEvent) => {
     event.preventDefault()
+    if (!draft.accountId) return setError("Choose an account.")
     if (!draft.symbol.trim()) return setError("Enter an instrument or symbol.")
     if (!Number.isFinite(draft.riskAmount) || draft.riskAmount <= 0) return setError("Risk must be greater than zero.")
     if (draft.outcome !== "breakeven" && draft.resultAmount <= 0) return setError("Enter how much the trade won or lost.")
@@ -363,6 +377,7 @@ function TradeFormDialog({
             </div>
           )}
           <div className="grid gap-4 sm:grid-cols-2">
+            <Field label="Account" htmlFor="account"><AccountSelect id="account" accounts={accounts} value={draft.accountId} onChange={(accountId) => setDraft({ ...draft, accountId })} includeAll={false} /></Field>
             <Field label="Date and time" htmlFor="tradedAt">
               <DateTimeField id="tradedAt" value={draft.tradedAt} onChange={(tradedAt) => setDraft({ ...draft, tradedAt })} />
             </Field>
@@ -484,7 +499,7 @@ function TradeRow({ trade, onClick }: { trade: Trade; onClick: () => void }) {
         {trade.direction === "long" ? <ArrowUpRight /> : <ArrowDownRight />}
       </div>
       <div className="min-w-0">
-        <div className="flex items-center gap-2"><span className="font-semibold">{trade.symbol}</span><span className="text-xs uppercase tracking-wide text-muted-foreground">{trade.direction}</span></div>
+        <div className="flex items-center gap-2"><span className="font-semibold">{trade.symbol}</span><span className="text-xs uppercase tracking-wide text-muted-foreground">{trade.direction}</span><span className="flex items-center gap-1 text-xs text-muted-foreground"><span className="status-pip" style={{ background: accountColors[trade.accountColor] }} />{trade.accountName}</span></div>
         <p className="truncate text-sm text-muted-foreground">{trade.setupName ?? "No setup"} · {format(parseISO(trade.tradedAt), "dd MMM, HH:mm")}</p>
       </div>
       <OutcomeBadge outcome={trade.outcome} />
@@ -499,11 +514,17 @@ function TradeRow({ trade, onClick }: { trade: Trade; onClick: () => void }) {
 
 function CalendarView({
   trades,
+  accounts,
+  selectedAccountId,
+  onAccountChange,
   currency,
   onSelectDay,
   onSelectTrade,
 }: {
   trades: Trade[]
+  accounts: TradingAccount[]
+  selectedAccountId: string
+  onAccountChange: (id: string) => void
   currency: string
   onSelectDay: (day: Date) => void
   onSelectTrade: (trade: Trade) => void
@@ -521,6 +542,7 @@ function CalendarView({
 
   return (
     <div className="space-y-5">
+      <div className="flex justify-end"><AccountSelect accounts={accounts} value={selectedAccountId} onChange={onAccountChange} /></div>
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
         <StatCard label={`${view === "week" ? "Weekly" : "Monthly"} net P&L`} value={formatMoney(summary.pnl, currency)} meta={`${summary.count} ${summary.count === 1 ? "trade" : "trades"}`} tone={summary.pnl > 0 ? "positive" : summary.pnl < 0 ? "negative" : "neutral"} />
         <StatCard label="Total R" value={formatR(summary.r)} meta="Risk-adjusted return" tone={summary.r > 0 ? "positive" : summary.r < 0 ? "negative" : "neutral"} />
@@ -578,7 +600,7 @@ function CalendarView({
   )
 }
 
-function TradesView({ trades, onSelectTrade }: { trades: Trade[]; onSelectTrade: (trade: Trade) => void }) {
+function TradesView({ trades, accounts, selectedAccountId, onAccountChange, onSelectTrade }: { trades: Trade[]; accounts: TradingAccount[]; selectedAccountId: string; onAccountChange: (id: string) => void; onSelectTrade: (trade: Trade) => void }) {
   const [query, setQuery] = useState("")
   const [outcome, setOutcome] = useState("all")
   const filtered = trades
@@ -590,6 +612,7 @@ function TradesView({ trades, onSelectTrade }: { trades: Trade[]; onSelectTrade:
     <section className="panel overflow-hidden">
       <div className="panel-header gap-3 max-sm:flex-col max-sm:items-stretch">
         <div className="relative max-w-md flex-1"><Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" /><Input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search symbol, setup or tag" className="pl-9" aria-label="Search trades" /></div>
+        <AccountSelect accounts={accounts} value={selectedAccountId} onChange={onAccountChange} />
         <Select aria-label="Outcome filter" value={outcome} onValueChange={setOutcome}><SelectTrigger className="w-40"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="all">All outcomes</SelectItem><SelectItem value="win">Wins</SelectItem><SelectItem value="loss">Losses</SelectItem><SelectItem value="breakeven">Breakeven</SelectItem></SelectContent></Select>
       </div>
       <div>{filtered.length ? filtered.map((trade) => <TradeRow key={trade.id} trade={trade} onClick={() => onSelectTrade(trade)} />) : <div className="empty-state"><Search /><h3>No matching trades</h3><p>Try changing the search or outcome filter.</p></div>}</div>
@@ -597,15 +620,24 @@ function TradesView({ trades, onSelectTrade }: { trades: Trade[]; onSelectTrade:
   )
 }
 
-function OrganiseView({ setups, tags, onAdd, onDelete }: { setups: Setup[]; tags: Tag[]; onAdd: (type: "setup" | "tag", name: string) => Promise<void>; onDelete: (type: "setup" | "tag", id: string) => Promise<void> }) {
+function OrganiseView({ accounts, setups, tags, onAdd, onDelete, onAddAccount, onUpdateAccount }: { accounts: TradingAccount[]; setups: Setup[]; tags: Tag[]; onAdd: (type: "setup" | "tag", name: string) => Promise<void>; onDelete: (type: "setup" | "tag", id: string) => Promise<void>; onAddAccount: (name: string, color: string) => Promise<void>; onUpdateAccount: (account: TradingAccount) => Promise<void> }) {
   const [setupName, setSetupName] = useState("")
   const [tagName, setTagName] = useState("")
+  const [accountName, setAccountName] = useState("")
+  const [accountColor, setAccountColor] = useState("cyan")
   return (
     <div className="grid gap-5 lg:grid-cols-2">
+      <section className="panel p-5 lg:col-span-2"><h2 className="font-semibold">Trading accounts</h2><p className="mt-1 text-sm text-muted-foreground">Keep each account on its own calendar.</p><form className="mt-5 flex flex-wrap gap-2" onSubmit={async (event) => { event.preventDefault(); if (accountName.trim()) { await onAddAccount(accountName.trim(), accountColor); setAccountName("") } }}><Input className="min-w-52 flex-1" value={accountName} onChange={(event) => setAccountName(event.target.value)} placeholder="New account name" aria-label="New account name" /><Select aria-label="Account colour" value={accountColor} onValueChange={setAccountColor}><SelectTrigger className="w-40"><SelectValue /></SelectTrigger><SelectContent>{Object.keys(accountColors).map((color) => <SelectItem key={color} value={color}><span className="capitalize">{color}</span></SelectItem>)}</SelectContent></Select><Button type="submit"><Plus /> Add account</Button></form><div className="mt-5 space-y-2">{accounts.map((account) => <AccountRow key={account.id} account={account} onSave={onUpdateAccount} />)}</div></section>
       <section className="panel p-5"><h2 className="font-semibold">Setups</h2><p className="mt-1 text-sm text-muted-foreground">Name the patterns you deliberately trade.</p><form className="mt-5 flex gap-2" onSubmit={async (event) => { event.preventDefault(); if (setupName.trim()) { await onAdd("setup", setupName.trim()); setSetupName("") } }}><Input value={setupName} onChange={(event) => setSetupName(event.target.value)} placeholder="New setup" aria-label="New setup name" /><Button type="submit" size="icon" aria-label="Add setup"><Plus /></Button></form><div className="mt-5 space-y-2">{setups.map((setup) => <div key={setup.id} className="organise-row"><span>{setup.name}</span><Button variant="ghost" size="icon-sm" onClick={() => onDelete("setup", setup.id)} aria-label={`Delete ${setup.name}`}><Trash2 /></Button></div>)}</div></section>
       <section className="panel p-5"><h2 className="font-semibold">Tags</h2><p className="mt-1 text-sm text-muted-foreground">Track emotions, mistakes and conditions.</p><form className="mt-5 flex gap-2" onSubmit={async (event) => { event.preventDefault(); if (tagName.trim()) { await onAdd("tag", tagName.trim()); setTagName("") } }}><Input value={tagName} onChange={(event) => setTagName(event.target.value)} placeholder="New tag" aria-label="New tag name" /><Button type="submit" size="icon" aria-label="Add tag"><Plus /></Button></form><div className="mt-5 space-y-2">{tags.map((tag) => <div key={tag.id} className="organise-row"><span className="flex items-center gap-2"><span className="status-pip bg-[var(--accent-cyan)]" />{tag.name}</span><Button variant="ghost" size="icon-sm" onClick={() => onDelete("tag", tag.id)} aria-label={`Delete ${tag.name}`}><Trash2 /></Button></div>)}</div></section>
     </div>
   )
+}
+
+function AccountRow({ account, onSave }: { account: TradingAccount; onSave: (account: TradingAccount) => Promise<void> }) {
+  const [name, setName] = useState(account.name)
+  const [color, setColor] = useState(account.color)
+  return <div className="organise-row flex-wrap"><span className="status-pip" style={{ background: accountColors[color] }} /><Input className="min-w-44 flex-1" value={name} onChange={(event) => setName(event.target.value)} aria-label={`${account.name} account name`} /><Select aria-label={`${account.name} colour`} value={color} onValueChange={setColor}><SelectTrigger className="w-36"><SelectValue /></SelectTrigger><SelectContent>{Object.keys(accountColors).map((option) => <SelectItem key={option} value={option}><span className="capitalize">{option}</span></SelectItem>)}</SelectContent></Select><Button variant="outline" onClick={() => void onSave({ ...account, name, color })}>Save</Button><Button variant="ghost" onClick={() => void onSave({ ...account, name, color, archived: !account.archived })}>{account.archived ? "Restore" : "Archive"}</Button></div>
 }
 
 function InboxView({ drafts, onReview, onDelete }: { drafts: CodexDraft[]; onReview: (draft: CodexDraft) => void; onDelete: (draft: CodexDraft) => Promise<void> }) {
@@ -697,6 +729,7 @@ function SettingsView({ profile, setProfile, onSave, onBackup, onRestore, dataLo
 function JournalWorkspace({ initial, api }: { initial: JournalBootstrap; api: JournalDesktopApi }) {
   const [page, setPage] = useState<Page>("calendar")
   const [trades, setTrades] = useState(initial.trades)
+  const [accounts, setAccounts] = useState(initial.accounts)
   const [setups, setSetups] = useState(initial.setups)
   const [tags, setTags] = useState(initial.tags)
   const [drafts, setDrafts] = useState(initial.drafts)
@@ -712,6 +745,7 @@ function JournalWorkspace({ initial, api }: { initial: JournalBootstrap; api: Jo
   const [dataLocation, setDataLocation] = useState("")
   const [codexStatus, setCodexStatus] = useState<CodexIntegrationStatus | null>(null)
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
+  const [selectedAccountId, setSelectedAccountId] = useState("all")
 
   useEffect(() => {
     api.dataLocation().then(setDataLocation).catch(() => setDataLocation("Your private app data folder"))
@@ -733,7 +767,7 @@ function JournalWorkspace({ initial, api }: { initial: JournalBootstrap; api: Jo
 
   useEffect(() => api.onCodexImport((receipt: CodexImportReceipt) => {
     api.load().then((data) => {
-      setTrades(data.trades); setSetups(data.setups); setTags(data.tags); setDrafts(data.drafts)
+      setTrades(data.trades); setAccounts(data.accounts); setSetups(data.setups); setTags(data.tags); setDrafts(data.drafts)
       if (receipt.status === "saved") {
         const imported = data.trades.find((trade) => trade.id === receipt.tradeId)
         toast.success(imported ? `${imported.symbol} ${imported.direction} saved: ${formatMoney(imported.pnlAmount, imported.currency)}, ${formatR(imported.rMultiple)}` : receipt.message, {
@@ -746,7 +780,8 @@ function JournalWorkspace({ initial, api }: { initial: JournalBootstrap; api: Jo
   }), [api])
 
   const currentSelectedTrade = selectedTrade ? trades.find((trade) => trade.id === selectedTrade.id) ?? null : null
-  const dayTrades = selectedDay ? tradesForDay(trades, selectedDay).sort((a, b) => b.tradedAt.localeCompare(a.tradedAt)) : []
+  const visibleTrades = selectedAccountId === "all" ? trades : trades.filter((trade) => trade.accountId === selectedAccountId)
+  const dayTrades = selectedDay ? tradesForDay(visibleTrades, selectedDay).sort((a, b) => b.tradedAt.localeCompare(a.tradedAt)) : []
 
   const openNewTrade = (day: Date | null = null) => {
     setEditingTrade(null)
@@ -759,6 +794,7 @@ function JournalWorkspace({ initial, api }: { initial: JournalBootstrap; api: Jo
   const saveTrade = async (draft: TradeFormValues, image: File | null, removeImage: boolean) => {
     const pnl = signedPnl(draft.outcome, draft.resultAmount)
     const payload = {
+      accountId: draft.accountId,
       tradedAt: new Date(draft.tradedAt).toISOString(),
       symbol: draft.symbol,
       direction: draft.direction,
@@ -815,6 +851,22 @@ function JournalWorkspace({ initial, api }: { initial: JournalBootstrap; api: Jo
     else setTags((items) => items.filter((item) => item.id !== id))
   }
 
+  const addAccount = async (name: string, color: string) => {
+    try {
+      const account = await api.addAccount(name, color)
+      setAccounts((items) => [...items, account])
+    }
+    catch (error) { toast.error(error instanceof Error ? error.message : "Could not add the account.") }
+  }
+
+  const updateAccount = async (account: TradingAccount) => {
+    try {
+      const saved = await api.updateAccount(account.id, account)
+      setAccounts((items) => items.map((item) => item.id === saved.id ? saved : item))
+      if (saved.archived && selectedAccountId === saved.id) setSelectedAccountId("all")
+    } catch (error) { toast.error(error instanceof Error ? error.message : "Could not update the account.") }
+  }
+
   const saveProfile = async () => {
     const storedProfile = await api.saveProfile(profile)
     setProfile(storedProfile)
@@ -829,6 +881,7 @@ function JournalWorkspace({ initial, api }: { initial: JournalBootstrap; api: Jo
     const result = await api.restore()
     if (result.canceled || !result.data) return
     setTrades(result.data.trades)
+    setAccounts(result.data.accounts)
     setSetups(result.data.setups)
     setTags(result.data.tags)
     setProfile(result.data.profile)
@@ -869,15 +922,15 @@ function JournalWorkspace({ initial, api }: { initial: JournalBootstrap; api: Jo
           <Button size="lg" onClick={() => openNewTrade()}><Plus /> Log trade</Button>
         </header>
         <main id="main-content" className="main-workspace" tabIndex={-1}>
-          {page === "calendar" && <CalendarView trades={trades} currency={profile.defaultCurrency} onSelectDay={setSelectedDay} onSelectTrade={setSelectedTrade} />}
-          {page === "trades" && <TradesView trades={trades} onSelectTrade={setSelectedTrade} />}
+          {page === "calendar" && <CalendarView trades={visibleTrades} accounts={accounts} selectedAccountId={selectedAccountId} onAccountChange={(id) => { setSelectedAccountId(id); setSelectedDay(null) }} currency={profile.defaultCurrency} onSelectDay={setSelectedDay} onSelectTrade={setSelectedTrade} />}
+          {page === "trades" && <TradesView trades={visibleTrades} accounts={accounts} selectedAccountId={selectedAccountId} onAccountChange={setSelectedAccountId} onSelectTrade={setSelectedTrade} />}
           {page === "inbox" && <InboxView drafts={drafts} onReview={(draft) => { setEditingTrade(null); setEditingDraft(draft); setFormOpen(true) }} onDelete={deleteCodexDraft} />}
-          {page === "organise" && <OrganiseView setups={setups} tags={tags} onAdd={addMetadata} onDelete={deleteMetadata} />}
+          {page === "organise" && <OrganiseView accounts={accounts} setups={setups} tags={tags} onAdd={addMetadata} onDelete={deleteMetadata} onAddAccount={addAccount} onUpdateAccount={updateAccount} />}
           {page === "settings" && <SettingsView profile={profile} setProfile={setProfile} onSave={saveProfile} onBackup={backup} onRestore={restore} dataLocation={dataLocation} codexStatus={codexStatus} onEnableCodex={enableCodex} onDisableCodex={disableCodex} onOpenInbox={api.openCodexInbox} />}
         </main>
       </div>
 
-      <TradeFormDialog open={formOpen} onOpenChange={(open) => { setFormOpen(open); if (!open) { setEditingTrade(null); setEditingDraft(null); setNewTradeDay(null) } }} profile={profile} setups={setups} tags={tags} trade={editingTrade} importDraft={editingDraft} selectedDay={newTradeDay} onSave={saveTrade} />
+      <TradeFormDialog open={formOpen} onOpenChange={(open) => { setFormOpen(open); if (!open) { setEditingTrade(null); setEditingDraft(null); setNewTradeDay(null) } }} profile={profile} accounts={accounts} selectedAccountId={selectedAccountId} setups={setups} tags={tags} trade={editingTrade} importDraft={editingDraft} selectedDay={newTradeDay} onSave={saveTrade} />
 
       <Sheet open={Boolean(selectedDay)} onOpenChange={(open) => !open && setSelectedDay(null)}>
         <SheetContent className="w-full overflow-y-auto border-[var(--border-strong)] bg-[var(--surface-1)] sm:max-w-lg">
@@ -892,7 +945,7 @@ function JournalWorkspace({ initial, api }: { initial: JournalBootstrap; api: Jo
             <SheetHeader><div className="flex items-start gap-3 pr-8"><div className={cn("trade-direction size-11", currentSelectedTrade.direction === "long" ? "text-[var(--success)]" : "text-[var(--loss)]")}>{currentSelectedTrade.direction === "long" ? <ArrowUpRight /> : <ArrowDownRight />}</div><div><SheetTitle className="text-xl">{currentSelectedTrade.symbol}</SheetTitle><SheetDescription className="mt-1 capitalize">{currentSelectedTrade.direction} · {format(parseISO(currentSelectedTrade.tradedAt), "d MMMM yyyy, HH:mm")}</SheetDescription></div></div></SheetHeader>
             <div className="space-y-6 border-t border-border p-5">
               <div className="grid grid-cols-3 gap-3"><DetailMetric label="Outcome"><OutcomeBadge outcome={currentSelectedTrade.outcome} /></DetailMetric><DetailMetric label="Net P&L"><span className={cn("font-mono font-semibold", currentSelectedTrade.pnlAmount > 0 && "text-[var(--success)]", currentSelectedTrade.pnlAmount < 0 && "text-[var(--loss)]")}>{formatMoney(currentSelectedTrade.pnlAmount, currentSelectedTrade.currency)}</span></DetailMetric><DetailMetric label="R-multiple"><span className="font-mono font-semibold">{formatR(currentSelectedTrade.rMultiple)}</span></DetailMetric></div>
-              <div className="grid grid-cols-2 gap-4 border-y border-border py-4"><div><p className="detail-label">Risked</p><p className="mt-1 font-mono">{formatMoney(currentSelectedTrade.riskAmount, currentSelectedTrade.currency)}</p></div><div><p className="detail-label">Setup</p><p className="mt-1">{currentSelectedTrade.setupName ?? "No setup"}</p></div></div>
+              <div className="grid grid-cols-3 gap-4 border-y border-border py-4"><div><p className="detail-label">Account</p><p className="mt-1 flex items-center gap-2"><span className="status-pip" style={{ background: accountColors[currentSelectedTrade.accountColor] }} />{currentSelectedTrade.accountName}</p></div><div><p className="detail-label">Risked</p><p className="mt-1 font-mono">{formatMoney(currentSelectedTrade.riskAmount, currentSelectedTrade.currency)}</p></div><div><p className="detail-label">Setup</p><p className="mt-1">{currentSelectedTrade.setupName ?? "No setup"}</p></div></div>
               {currentSelectedTrade.setupDescription && <div><p className="detail-label mb-2">Setup description</p><p className="rounded-lg border border-border bg-[var(--surface-2)] p-3 text-sm leading-6">{currentSelectedTrade.setupDescription}</p></div>}
               {currentSelectedTrade.tags.length > 0 && <div><p className="detail-label mb-2">Tags</p><div className="flex flex-wrap gap-2">{currentSelectedTrade.tags.map((tag) => <Badge variant="outline" key={tag.id}>{tag.name}</Badge>)}</div></div>}
               <div><p className="detail-label mb-2">Thought process</p><div className="prose-note" dangerouslySetInnerHTML={{ __html: currentSelectedTrade.noteHtml || "<p>No notes added.</p>" }} /></div>

@@ -9,10 +9,11 @@ const sanitizeHtml = require("sanitize-html")
 const schema = `
   PRAGMA foreign_keys = ON;
   CREATE TABLE IF NOT EXISTS profile (id TEXT PRIMARY KEY, display_name TEXT NOT NULL, default_currency TEXT NOT NULL, timezone TEXT NOT NULL);
+  CREATE TABLE IF NOT EXISTS accounts (id TEXT PRIMARY KEY, name TEXT NOT NULL COLLATE NOCASE UNIQUE, color TEXT NOT NULL DEFAULT 'cyan', archived INTEGER NOT NULL DEFAULT 0 CHECK (archived IN (0, 1)));
   CREATE TABLE IF NOT EXISTS setups (id TEXT PRIMARY KEY, name TEXT NOT NULL COLLATE NOCASE UNIQUE);
   CREATE TABLE IF NOT EXISTS tags (id TEXT PRIMARY KEY, name TEXT NOT NULL COLLATE NOCASE UNIQUE, color TEXT NOT NULL DEFAULT 'cyan');
   CREATE TABLE IF NOT EXISTS trades (
-    id TEXT PRIMARY KEY, traded_at TEXT NOT NULL, symbol TEXT NOT NULL,
+    id TEXT PRIMARY KEY, account_id TEXT REFERENCES accounts(id), traded_at TEXT NOT NULL, symbol TEXT NOT NULL,
     direction TEXT NOT NULL CHECK (direction IN ('long', 'short')),
     setup_id TEXT REFERENCES setups(id) ON DELETE SET NULL, setup_description TEXT NOT NULL DEFAULT '',
     risk_amount REAL NOT NULL CHECK (risk_amount > 0), currency TEXT NOT NULL,
@@ -43,6 +44,7 @@ const allowedImageTypes = new Set(["image/jpeg", "image/png", "image/webp"])
 const maxImageBytes = 10 * 1024 * 1024
 const requiredImportFields = ["tradedAt", "symbol", "direction", "riskAmount", "outcome", "resultAmount"]
 const allowedInstruments = new Set(["NQ", "ES", "MNQ", "MES"])
+const allowedAccountColors = new Set(["cyan", "emerald", "violet", "amber"])
 
 function rows(db, sql, params = []) {
   const statement = db.prepare(sql)
@@ -107,6 +109,7 @@ async function createJournalStore(databasePath) {
     ensureColumn("trades", "setup_description", "TEXT NOT NULL DEFAULT ''")
     ensureColumn("trades", "source", "TEXT NOT NULL DEFAULT 'manual'")
     ensureColumn("trades", "source_import_id", "TEXT")
+    ensureColumn("trades", "account_id", "TEXT")
     ensureColumn("profile", "theme", "TEXT NOT NULL DEFAULT 'midnight'")
     ensureColumn("profile", "accent", "TEXT NOT NULL DEFAULT 'theme'")
     ensureColumn("profile", "density", "TEXT NOT NULL DEFAULT 'comfortable'")
@@ -114,12 +117,15 @@ async function createJournalStore(databasePath) {
     ensureColumn("profile", "font_mode", "TEXT NOT NULL DEFAULT 'clean'")
     ensureColumn("profile", "motion", "TEXT NOT NULL DEFAULT 'system'")
     ensureColumn("profile", "glow", "TEXT NOT NULL DEFAULT 'subtle'")
+    if (!one(db, "SELECT id FROM accounts LIMIT 1")) run(db, "INSERT INTO accounts (id, name, color) VALUES ('default-account', 'Default Account', 'cyan')")
+    const defaultAccount = one(db, "SELECT id FROM accounts WHERE archived = 0 ORDER BY name LIMIT 1") || one(db, "SELECT id FROM accounts ORDER BY name LIMIT 1")
+    run(db, "UPDATE trades SET account_id = ? WHERE account_id IS NULL OR account_id = ''", [defaultAccount.id])
     run(db, "UPDATE trades SET symbol = 'NQ' WHERE UPPER(symbol) = 'NQ1!'")
     run(db, "UPDATE trades SET symbol = 'ES' WHERE UPPER(symbol) = 'ES1!'")
     run(db, "UPDATE trades SET symbol = 'MNQ' WHERE UPPER(symbol) = 'MNQ1!'")
     run(db, "UPDATE trades SET symbol = 'MES' WHERE UPPER(symbol) = 'MES1!'")
     run(db, "CREATE UNIQUE INDEX IF NOT EXISTS idx_trades_source_import_id ON trades(source_import_id) WHERE source_import_id IS NOT NULL")
-    run(db, "PRAGMA user_version = 3")
+    run(db, "PRAGMA user_version = 4")
     if (!one(db, "SELECT id FROM profile LIMIT 1")) {
       run(db, "INSERT INTO profile (id, display_name, default_currency, timezone) VALUES (?, ?, ?, ?)", ["local-user", "Trader", "GBP", Intl.DateTimeFormat().resolvedOptions().timeZone || "Europe/London"])
       for (const name of ["Liquidity sweep", "Opening range", "Trend continuation", "Reversal"]) run(db, "INSERT INTO setups (id, name) VALUES (?, ?)", [randomUUID(), name])
@@ -133,7 +139,7 @@ async function createJournalStore(databasePath) {
       .map((tag) => ({ id: String(tag.id), name: String(tag.name), color: String(tag.color) }))
     const storedImage = one(db, "SELECT id, trade_id, file_name, content_type, bytes FROM trade_images WHERE trade_id = ?", [row.id])
     return {
-      id: String(row.id), tradedAt: String(row.traded_at), symbol: String(row.symbol), direction: String(row.direction),
+      id: String(row.id), accountId: String(row.account_id), accountName: String(row.account_name ?? "Default Account"), accountColor: String(row.account_color ?? "cyan"), tradedAt: String(row.traded_at), symbol: String(row.symbol), direction: String(row.direction),
       setupId: row.setup_id ? String(row.setup_id) : null, setupName: row.setup_name ? String(row.setup_name) : null,
       setupDescription: String(row.setup_description ?? ""), riskAmount: Number(row.risk_amount), currency: String(row.currency),
       outcome: String(row.outcome), pnlAmount: Number(row.pnl_amount), rMultiple: Number(row.r_multiple), noteHtml: String(row.note_html ?? ""), tags: tradeTags,
@@ -156,7 +162,7 @@ async function createJournalStore(databasePath) {
   }
 
   function getTrade(id) {
-    const row = one(db, "SELECT trades.*, setups.name AS setup_name FROM trades LEFT JOIN setups ON setups.id = trades.setup_id WHERE trades.id = ?", [id])
+    const row = one(db, "SELECT trades.*, setups.name AS setup_name, accounts.name AS account_name, accounts.color AS account_color FROM trades LEFT JOIN setups ON setups.id = trades.setup_id LEFT JOIN accounts ON accounts.id = trades.account_id WHERE trades.id = ?", [id])
     if (!row) throw new Error("Trade not found.")
     return hydrateTrade(row)
   }
@@ -169,9 +175,10 @@ async function createJournalStore(databasePath) {
         theme: String(storedProfile.theme ?? "midnight"), accent: String(storedProfile.accent ?? "theme"), density: String(storedProfile.density ?? "comfortable"),
         corners: String(storedProfile.corners ?? "rounded"), fontMode: String(storedProfile.font_mode ?? "clean"), motion: String(storedProfile.motion ?? "system"), glow: String(storedProfile.glow ?? "subtle"),
       },
+      accounts: rows(db, "SELECT id, name, color, archived FROM accounts ORDER BY archived, name").map((item) => ({ id: String(item.id), name: String(item.name), color: String(item.color), archived: Boolean(item.archived) })),
       setups: rows(db, "SELECT id, name FROM setups ORDER BY name").map((item) => ({ id: String(item.id), name: String(item.name) })),
       tags: rows(db, "SELECT id, name, color FROM tags ORDER BY name").map((item) => ({ id: String(item.id), name: String(item.name), color: String(item.color) })),
-      trades: rows(db, "SELECT trades.*, setups.name AS setup_name FROM trades LEFT JOIN setups ON setups.id = trades.setup_id ORDER BY trades.traded_at DESC").map(hydrateTrade),
+      trades: rows(db, "SELECT trades.*, setups.name AS setup_name, accounts.name AS account_name, accounts.color AS account_color FROM trades LEFT JOIN setups ON setups.id = trades.setup_id LEFT JOIN accounts ON accounts.id = trades.account_id ORDER BY trades.traded_at DESC").map(hydrateTrade),
       drafts: rows(db, "SELECT * FROM trade_drafts ORDER BY created_at DESC").map(hydrateDraft), demoMode: false,
     }
   }
@@ -185,15 +192,18 @@ async function createJournalStore(databasePath) {
     const profile = one(db, "SELECT default_currency FROM profile LIMIT 1")
     const risk = Number(payload.riskAmount), pnl = Number(payload.pnlAmount), rMultiple = Number((pnl / risk).toFixed(4))
     const setupExists = payload.setupId ? one(db, "SELECT id FROM setups WHERE id = ?", [payload.setupId]) : null
+    const accountId = cleanShort(payload.accountId, 100) || String(existing?.account_id ?? one(db, "SELECT id FROM accounts WHERE archived = 0 ORDER BY name LIMIT 1")?.id ?? "")
+    const account = one(db, "SELECT id, archived FROM accounts WHERE id = ?", [accountId])
+    if (!account || (account.archived && String(existing?.account_id ?? "") !== accountId)) throw new Error("Choose an active account.")
     const currency = existing ? String(existing.currency) : String(profile.default_currency)
     const source = existing ? String(existing.source ?? "manual") : input.source === "codex" ? "codex" : "manual"
     const sourceImportId = existing ? existing.source_import_id : input.sourceImportId || null
     db.run("BEGIN")
     try {
       if (existing) {
-        run(db, "UPDATE trades SET traded_at = ?, symbol = ?, direction = ?, setup_id = ?, setup_description = ?, risk_amount = ?, outcome = ?, pnl_amount = ?, r_multiple = ?, note_html = ?, updated_at = ? WHERE id = ?", [payload.tradedAt, cleanInstrument(payload.symbol), payload.direction, setupExists ? payload.setupId : null, cleanShort(payload.setupDescription, 1000), risk, payload.outcome, pnl, rMultiple, cleanNote(payload.noteHtml), now, id])
+        run(db, "UPDATE trades SET account_id = ?, traded_at = ?, symbol = ?, direction = ?, setup_id = ?, setup_description = ?, risk_amount = ?, outcome = ?, pnl_amount = ?, r_multiple = ?, note_html = ?, updated_at = ? WHERE id = ?", [accountId, payload.tradedAt, cleanInstrument(payload.symbol), payload.direction, setupExists ? payload.setupId : null, cleanShort(payload.setupDescription, 1000), risk, payload.outcome, pnl, rMultiple, cleanNote(payload.noteHtml), now, id])
       } else {
-        run(db, "INSERT INTO trades (id, traded_at, symbol, direction, setup_id, setup_description, risk_amount, currency, outcome, pnl_amount, r_multiple, note_html, source, source_import_id, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", [id, payload.tradedAt, cleanInstrument(payload.symbol), payload.direction, setupExists ? payload.setupId : null, cleanShort(payload.setupDescription, 1000), risk, currency, payload.outcome, pnl, rMultiple, cleanNote(payload.noteHtml), source, sourceImportId, now, now])
+        run(db, "INSERT INTO trades (id, account_id, traded_at, symbol, direction, setup_id, setup_description, risk_amount, currency, outcome, pnl_amount, r_multiple, note_html, source, source_import_id, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", [id, accountId, payload.tradedAt, cleanInstrument(payload.symbol), payload.direction, setupExists ? payload.setupId : null, cleanShort(payload.setupDescription, 1000), risk, currency, payload.outcome, pnl, rMultiple, cleanNote(payload.noteHtml), source, sourceImportId, now, now])
       }
       run(db, "DELETE FROM trade_tags WHERE trade_id = ?", [id])
       for (const tagId of [...new Set(payload.tagIds ?? [])]) if (one(db, "SELECT id FROM tags WHERE id = ?", [tagId])) run(db, "INSERT INTO trade_tags (trade_id, tag_id) VALUES (?, ?)", [id, tagId])
@@ -295,7 +305,7 @@ async function createJournalStore(databasePath) {
 
   function duplicateTrade(id) {
     const source = getTrade(id)
-    return saveTrade({ payload: { tradedAt: new Date().toISOString(), symbol: source.symbol, direction: source.direction, setupId: source.setupId, setupDescription: source.setupDescription, riskAmount: source.riskAmount, outcome: source.outcome, pnlAmount: source.pnlAmount, noteHtml: source.noteHtml, tagIds: source.tags.map((tag) => tag.id) } })
+    return saveTrade({ payload: { accountId: source.accountId, tradedAt: new Date().toISOString(), symbol: source.symbol, direction: source.direction, setupId: source.setupId, setupDescription: source.setupDescription, riskAmount: source.riskAmount, outcome: source.outcome, pnlAmount: source.pnlAmount, noteHtml: source.noteHtml, tagIds: source.tags.map((tag) => tag.id) } })
   }
   function deleteTrade(id) { run(db, "DELETE FROM trades WHERE id = ?", [id]); persist() }
   function addMetadata(type, rawName) {
@@ -306,6 +316,23 @@ async function createJournalStore(databasePath) {
     const id = ensureNamedItem(type, name); persist(); return type === "setup" ? { id, name } : { id, name, color: "cyan" }
   }
   function deleteMetadata(type, id) { const table = type === "setup" ? "setups" : type === "tag" ? "tags" : null; if (!table) throw new Error("Unknown item type."); run(db, `DELETE FROM ${table} WHERE id = ?`, [id]); persist() }
+  function addAccount(rawName, rawColor) {
+    const name = cleanShort(rawName, 60), color = allowedAccountColors.has(rawColor) ? rawColor : "cyan"
+    if (!name) throw new Error("Enter an account name first.")
+    if (one(db, "SELECT id FROM accounts WHERE name = ? COLLATE NOCASE", [name])) throw new Error("That account name already exists.")
+    const id = randomUUID(); run(db, "INSERT INTO accounts (id, name, color) VALUES (?, ?, ?)", [id, name, color]); persist()
+    return { id, name, color, archived: false }
+  }
+  function updateAccount(id, changes) {
+    const account = one(db, "SELECT * FROM accounts WHERE id = ?", [id])
+    if (!account) throw new Error("Account not found.")
+    const name = cleanShort(changes?.name, 60), color = allowedAccountColors.has(changes?.color) ? changes.color : String(account.color), archived = Boolean(changes?.archived)
+    if (!name) throw new Error("Enter an account name first.")
+    if (one(db, "SELECT id FROM accounts WHERE name = ? COLLATE NOCASE AND id <> ?", [name, id])) throw new Error("That account name already exists.")
+    if (archived && !account.archived && Number(one(db, "SELECT COUNT(*) AS count FROM accounts WHERE archived = 0").count) <= 1) throw new Error("Keep at least one active account.")
+    run(db, "UPDATE accounts SET name = ?, color = ?, archived = ? WHERE id = ?", [name, color, archived ? 1 : 0, id]); persist()
+    return { id, name, color, archived }
+  }
   function saveProfile(profile) {
     const displayName = cleanShort(profile.displayName, 80) || "Trader", currency = String(profile.defaultCurrency ?? "GBP").toUpperCase(), timezone = cleanShort(profile.timezone, 100) || Intl.DateTimeFormat().resolvedOptions().timeZone || "Europe/London"
     if (!/^[A-Z]{3}$/.test(currency)) throw new Error("Choose a valid three-letter currency.")
@@ -330,9 +357,9 @@ async function createJournalStore(databasePath) {
 
   initialize()
   return {
-    bootstrap, saveTrade, duplicateTrade, deleteTrade, addMetadata, deleteMetadata, saveProfile, importDatabase,
+    bootstrap, saveTrade, duplicateTrade, deleteTrade, addMetadata, deleteMetadata, addAccount, updateAccount, saveProfile, importDatabase,
     processCodexImport, completeDraft, deleteDraft, undoImport,
-    codexContext: () => { const data = bootstrap(); return { schemaVersion: 1, defaultCurrency: data.profile.defaultCurrency, timezone: data.profile.timezone, instruments: ["NQ", "ES", "MNQ", "MES"], setups: data.setups.map((item) => item.name), tags: data.tags.map((item) => item.name) } },
+    codexContext: () => { const data = bootstrap(); return { schemaVersion: 1, defaultCurrency: data.profile.defaultCurrency, timezone: data.profile.timezone, accounts: data.accounts.filter((item) => !item.archived).map((item) => item.name), instruments: ["NQ", "ES", "MNQ", "MES"], setups: data.setups.map((item) => item.name), tags: data.tags.map((item) => item.name) } },
     exportDatabase: () => Buffer.from(db.export()), close: () => db.close(),
   }
 }

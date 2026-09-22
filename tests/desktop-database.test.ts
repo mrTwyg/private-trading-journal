@@ -8,7 +8,8 @@ const require = createRequire(import.meta.url)
 type JournalStore = {
   bootstrap: () => {
     profile: { displayName: string; defaultCurrency: string; timezone: string; theme: string; accent: string; density: string; corners: string; fontMode: string; motion: string; glow: string }
-    trades: Array<{ id: string }>
+    accounts: Array<{ id: string; name: string; color: string; archived: boolean }>
+    trades: Array<{ id: string; accountId: string; accountName: string }>
     drafts: Array<{ id: string; importId: string; missingFields: string[]; uncertainFields: string[] }>
     setups: Array<{ id: string }>
     tags: Array<{ id: string }>
@@ -22,6 +23,8 @@ type JournalStore = {
   completeDraft: (input: { draftId: string; payload: Record<string, unknown> }) => { id: string; pnlAmount: number; rMultiple: number }
   undoImport: (importId: string) => void
   saveProfile: (profile: Record<string, unknown>) => { theme: string; accent: string; density: string; corners: string; fontMode: string; motion: string; glow: string }
+  addAccount: (name: string, color: string) => { id: string; name: string; color: string; archived: boolean }
+  updateAccount: (id: string, changes: Record<string, unknown>) => { id: string; name: string; color: string; archived: boolean }
   close: () => void
 }
 const { createJournalStore } = require("../electron/database.cjs") as {
@@ -43,6 +46,7 @@ describe("offline journal database", () => {
     const initial = store.bootstrap()
 
     expect(initial.trades).toHaveLength(0)
+    expect(initial.accounts).toEqual([{ id: "default-account", name: "Default Account", color: "cyan", archived: false }])
     expect(initial.setups.length).toBeGreaterThan(0)
 
     const trade = store.saveTrade({
@@ -63,6 +67,20 @@ describe("offline journal database", () => {
     expect(trade.noteHtml).not.toContain("script")
     expect(store.bootstrap().trades).toHaveLength(1)
     expect(fs.existsSync(databasePath)).toBe(true)
+    store.close()
+  })
+
+  it("keeps each trade on its selected account", async () => {
+    const directory = fs.mkdtempSync(path.join(os.tmpdir(), "journal-test-"))
+    temporaryDirectories.push(directory)
+    const store = await createJournalStore(path.join(directory, "journal.sqlite"))
+    const account = store.addAccount("Evaluation", "violet")
+    const trade = store.saveTrade({ payload: { accountId: account.id, tradedAt: "2026-09-18T10:00:00.000Z", symbol: "MNQ", direction: "long", setupId: null, riskAmount: 100, outcome: "win", pnlAmount: 200, noteHtml: "", tagIds: [] } })
+
+    expect(trade).toMatchObject({ accountId: account.id, accountName: "Evaluation" })
+    expect(store.bootstrap().accounts).toHaveLength(2)
+    expect(store.updateAccount(account.id, { ...account, archived: true }).archived).toBe(true)
+    expect(() => store.saveTrade({ payload: { accountId: account.id, tradedAt: "2026-09-19T10:00:00.000Z", symbol: "MNQ", direction: "long", setupId: null, riskAmount: 100, outcome: "win", pnlAmount: 200, noteHtml: "", tagIds: [] } })).toThrow("active account")
     store.close()
   })
 

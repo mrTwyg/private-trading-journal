@@ -29,6 +29,8 @@ function registerHandlers() {
   ipcMain.handle("journal:delete-trade", (_event, id) => store.deleteTrade(id))
   ipcMain.handle("journal:add-metadata", (_event, type, name) => { const result = store.addMetadata(type, name); codexInbox.refreshContext(); return result })
   ipcMain.handle("journal:delete-metadata", (_event, type, id) => { store.deleteMetadata(type, id); codexInbox.refreshContext() })
+  ipcMain.handle("journal:add-account", (_event, name, color) => { const result = store.addAccount(name, color); codexInbox.refreshContext(); return result })
+  ipcMain.handle("journal:update-account", (_event, id, changes) => { const result = store.updateAccount(id, changes); codexInbox.refreshContext(); return result })
   ipcMain.handle("journal:save-profile", (_event, profile) => { const result = store.saveProfile(profile); codexInbox.refreshContext(); return result })
   ipcMain.handle("journal:data-location", () => databasePath)
   ipcMain.handle("window:set-chrome", (_event, theme) => {

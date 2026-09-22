@@ -9,6 +9,8 @@ contextBridge.exposeInMainWorld("journalApi", {
   deleteTrade: (id) => ipcRenderer.invoke("journal:delete-trade", id),
   addMetadata: (type, name) => ipcRenderer.invoke("journal:add-metadata", type, name),
   deleteMetadata: (type, id) => ipcRenderer.invoke("journal:delete-metadata", type, id),
+  addAccount: (name, color) => ipcRenderer.invoke("journal:add-account", name, color),
+  updateAccount: (id, changes) => ipcRenderer.invoke("journal:update-account", id, changes),
   saveProfile: (profile) => ipcRenderer.invoke("journal:save-profile", profile),
   backup: () => ipcRenderer.invoke("journal:backup"),
   restore: () => ipcRenderer.invoke("journal:restore"),

@@ -20,6 +20,13 @@ export type Tag = {
   color: string
 }
 
+export type TradingAccount = {
+  id: string
+  name: string
+  color: string
+  archived: boolean
+}
+
 export type TradeImage = {
   id: string
   tradeId: string
@@ -30,6 +37,9 @@ export type TradeImage = {
 
 export type Trade = {
   id: string
+  accountId: string
+  accountName: string
+  accountColor: string
   tradedAt: string
   symbol: string
   direction: TradeDirection
@@ -66,6 +76,7 @@ export type Profile = {
 }
 
 export type TradeFormValues = {
+  accountId: string
   tradedAt: string
   symbol: string
   direction: TradeDirection
@@ -145,6 +156,7 @@ export type CodexIntegrationStatus = {
 
 export type JournalBootstrap = {
   profile: Profile
+  accounts: TradingAccount[]
   trades: Trade[]
   setups: Setup[]
   tags: Tag[]
@@ -153,6 +165,7 @@ export type JournalBootstrap = {
 }
 
 export type DesktopTradePayload = {
+  accountId: string
   tradedAt: string
   symbol: string
   direction: TradeDirection
@@ -191,6 +204,8 @@ export type JournalDesktopApi = {
   deleteTrade: (id: string) => Promise<void>
   addMetadata: (type: "setup" | "tag", name: string) => Promise<Setup | Tag>
   deleteMetadata: (type: "setup" | "tag", id: string) => Promise<void>
+  addAccount: (name: string, color: string) => Promise<TradingAccount>
+  updateAccount: (id: string, changes: Pick<TradingAccount, "name" | "color" | "archived">) => Promise<TradingAccount>
   saveProfile: (profile: Profile) => Promise<Profile>
   backup: () => Promise<DesktopOperationResult>
   restore: () => Promise<DesktopOperationResult>
