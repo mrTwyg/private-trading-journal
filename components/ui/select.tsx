@@ -32,9 +32,9 @@ function SelectContent({ className, children }: { className?: string; children: 
   )
 }
 
-function SelectItem({ className, children, value }: { className?: string; children: React.ReactNode; value: string }) {
+function SelectItem({ className, children, value, textValue }: { className?: string; children: React.ReactNode; value: string; textValue?: string }) {
   return (
-    <ListBoxItem id={value} textValue={typeof children === "string" ? children : value} className={({ isFocused, isSelected, isDisabled }) => cn("relative flex min-h-9 cursor-default items-center rounded-[0.45rem] px-2.5 pr-8 text-sm outline-none", (isFocused || isSelected) && "bg-accent text-accent-foreground", isDisabled && "opacity-45", className)}>
+    <ListBoxItem id={value} textValue={textValue ?? (typeof children === "string" ? children : value)} className={({ isFocused, isSelected, isDisabled }) => cn("relative flex min-h-9 cursor-default items-center rounded-[0.45rem] px-2.5 pr-8 text-sm outline-none", (isFocused || isSelected) && "bg-accent text-accent-foreground", isDisabled && "opacity-45", className)}>
       {({ isSelected }) => <>{children}{isSelected && <Check className="absolute right-2.5 size-4 text-primary" />}</>}
     </ListBoxItem>
   )

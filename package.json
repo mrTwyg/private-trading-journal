@@ -1,7 +1,7 @@
 {
   "name": "offline-trading-journal",
   "productName": "Trading Journal",
-  "version": "1.5.0",
+  "version": "1.5.1",
   "private": true,
   "description": "A private offline desktop trading journal",
   "author": "Private Trading Journal",
