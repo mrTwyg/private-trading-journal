@@ -49,6 +49,11 @@ next-env.d.ts
 /build/
 /work-*-smoke.png
 
+# Local coding-agent instructions and reusable personal skills.
+/AGENTS.md
+/CLAUDE.md
+/skills/
+
 # Personal offline journal data — never commit trades, screenshots, or SQLite state.
 *.sqlite
 *.sqlite-shm
