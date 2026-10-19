@@ -1,6 +1,6 @@
-import type { Metadata } from "next";
-import { Toaster } from "@/components/ui/sonner";
-import "./globals.css";
+import type { Metadata } from "next"
+import { Toaster } from "@/components/ui/sonner"
+import "./globals.css"
 
 export const metadata: Metadata = {
   title: "Trading Journal — Offline Desktop App",
@@ -9,12 +9,12 @@ export const metadata: Metadata = {
     icon: "/favicon.svg",
     shortcut: "/favicon.svg",
   },
-};
+}
 
 export default function RootLayout({
   children,
 }: Readonly<{
-  children: React.ReactNode;
+  children: React.ReactNode
 }>) {
   return (
     <html lang="en" className="dark">
@@ -29,5 +29,5 @@ export default function RootLayout({
         <Toaster richColors position="bottom-right" />
       </body>
     </html>
-  );
+  )
 }

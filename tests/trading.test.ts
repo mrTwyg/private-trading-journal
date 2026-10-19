@@ -15,7 +15,15 @@ afterEach(() => vi.useRealTimers())
 
 describe("trade result calculations", () => {
   it("shows separate totals rather than adding USD to historical GBP", () => {
-    expect(formatTradePnl([{ currency: "USD", pnlAmount: 250 }, { currency: "GBP", pnlAmount: 100 }] as Trade[], "GBP")).toBe("US$250.00 / £100.00")
+    expect(
+      formatTradePnl(
+        [
+          { currency: "USD", pnlAmount: 250 },
+          { currency: "GBP", pnlAmount: 100 },
+        ] as Trade[],
+        "GBP",
+      ),
+    ).toBe("US$250.00 / £100.00")
   })
   it("turns the manually selected outcome into a signed P&L", () => {
     expect(signedPnl("win", 250)).toBe(250)
@@ -56,7 +64,14 @@ describe("trade result calculations", () => {
       { ...base, id: "2", outcome: "loss", pnlAmount: -100, rMultiple: -1 },
       { ...base, id: "3", outcome: "breakeven", pnlAmount: 0, rMultiple: 0 },
     ] as Trade[]
-    expect(aggregateTrades(trades)).toEqual({ pnl: 100, r: 1, count: 3, win: 1, loss: 1, breakeven: 1 })
+    expect(aggregateTrades(trades)).toEqual({
+      pnl: 100,
+      r: 1,
+      count: 3,
+      win: 1,
+      loss: 1,
+      breakeven: 1,
+    })
   })
 })
 
