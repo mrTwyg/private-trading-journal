@@ -24,6 +24,18 @@ app.setAppUserModelId("local.tradingjournal.desktop")
 
 function registerHandlers() {
   ipcMain.handle("journal:load", () => store.bootstrap())
+  ipcMain.handle("journal:create-tracked-account", (_event, name, color, input) => {
+    const result = store.createTrackedAccount(name, color, input)
+    codexInbox.refreshContext()
+    return result
+  })
+  ipcMain.handle("journal:delete-account", (_event, id, confirmationName) => {
+    const result = store.deleteAccount(id, confirmationName)
+    codexInbox.refreshContext()
+    return result
+  })
+  ipcMain.handle("journal:add-firm", (_event, name) => store.addFirm(name))
+  ipcMain.handle("journal:delete-firm", (_event, id) => store.deleteFirm(id))
   ipcMain.handle("journal:save-account-tracker", (_event, id, input) => {
     const result = store.saveAccountTracker(id, input)
     codexInbox.refreshContext()

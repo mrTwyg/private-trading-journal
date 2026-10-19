@@ -68,6 +68,12 @@ Do not bypass the warning for a copy downloaded from an unknown website or sent 
 
 Open **Accounts** to record each purchased account separately. Group by firm and switch between Active, History, Not tracked, and All accounts. Track the initial purchase price, purchase date, discount code, account size, and balance in USD. The purchase price is the final amount paid after any discount.
 
+Click **Add account** to open the full form, including the name and firm. Money inputs show a `$` prefix; all account-tracking amounts remain USD. Manage the reusable firm dropdown in **Setups & tags → Prop firms**. Removing a firm choice does not change accounts or their history.
+
+To permanently remove an account, choose **Delete account** in Accounts, or **Delete** beside its name in Setups & tags. You must type its exact name to confirm. This deletes that account's trades, screenshots, tracking details and adjustments, and cannot be undone. A linked evaluation or live account keeps its own history. Drafts keep their content but require a new account assignment. Use Archive instead if you want to keep the history.
+
+Before the account-management upgrade, the app saves an untouched database copy beside the original as `trading-journal.sqlite.before-account-management-v6.bak`. This is a recovery copy, not an undo button for later deletions. Make a fresh backup in Settings before deleting anything you might want to recover.
+
 Existing accounts are left untracked after updating. Choose **Not tracked → Enable tracking**, enter the current opening balance, and choose a date and time after the trades already included in that balance. Your older trades, screenshots, currencies, settings, and calendar assignments stay saved. New trades on tracked accounts use USD; historical currencies are never converted. The calendar shows separate currency totals when needed.
 
 Balances are opening balance plus USD trade results from the chosen start time, plus adjustments. Editing, deleting, duplicating, or moving trades recalculates balances. Use **Payout / adjustment** for withdrawals (negative) or credits (positive); adjustments do not change trade P&L. Record a corrective adjustment if a previous adjustment was wrong.

@@ -38,6 +38,7 @@ export function JournalWorkspace({
   const [page, setPage] = useState<Page>("calendar")
   const [trades, setTrades] = useState(initial.trades)
   const [accounts, setAccounts] = useState(initial.accounts)
+  const [firms, setFirms] = useState(initial.firms)
   const [trackers, setTrackers] = useState(initial.accountTrackers)
   const [setups, setSetups] = useState(initial.setups)
   const [tags, setTags] = useState(initial.tags)
@@ -58,6 +59,13 @@ export function JournalWorkspace({
   const reloadAccounts = (data: JournalBootstrap) => {
     setAccounts(data.accounts)
     setTrackers(data.accountTrackers)
+    setFirms(data.firms)
+    setTrades(data.trades)
+    setDrafts(data.drafts)
+    setSelectedAccountId((id) => (data.accounts.some((account) => account.id === id) ? id : "all"))
+    setSelectedTrade((trade) =>
+      trade && data.trades.some((item) => item.id === trade.id) ? trade : null,
+    )
   }
 
   useEffect(() => {
@@ -247,13 +255,19 @@ export function JournalWorkspace({
     else setTags((items) => items.filter((item) => item.id !== id))
   }
 
-  const addAccount = async (name: string, color: string) => {
-    try {
-      const account = await api.addAccount(name, color)
-      setAccounts((items) => [...items, account])
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Could not add the account.")
-    }
+  const deleteAccount = async (account: TradingAccount, confirmationName: string) => {
+    reloadAccounts(await api.deleteAccount(account.id, confirmationName))
+    toast.success("Account permanently deleted")
+  }
+
+  const addFirm = async (name: string) => {
+    const firm = await api.addFirm(name)
+    setFirms((items) => [...items, firm].sort((a, b) => a.name.localeCompare(b.name)))
+  }
+
+  const deleteFirm = async (id: string) => {
+    await api.deleteFirm(id)
+    setFirms((items) => items.filter((firm) => firm.id !== id))
   }
 
   const updateAccount = async (account: TradingAccount) => {
@@ -281,6 +295,7 @@ export function JournalWorkspace({
     if (result.canceled || !result.data) return
     setTrades(result.data.trades)
     setAccounts(result.data.accounts)
+    setFirms(result.data.firms)
     setTrackers(result.data.accountTrackers)
     setSetups(result.data.setups)
     setTags(result.data.tags)
@@ -365,7 +380,13 @@ export function JournalWorkspace({
       }
     >
       {page === "accounts" && (
-        <AccountsView accounts={accounts} trackers={trackers} api={api} onReload={reloadAccounts} />
+        <AccountsView
+          accounts={accounts}
+          trackers={trackers}
+          firms={firms}
+          api={api}
+          onReload={reloadAccounts}
+        />
       )}
       {page === "calendar" && (
         <CalendarView
@@ -406,9 +427,13 @@ export function JournalWorkspace({
           accounts={accounts}
           setups={setups}
           tags={tags}
+          firms={firms}
           onAdd={addMetadata}
           onDelete={deleteMetadata}
-          onAddAccount={addAccount}
+          onManageAccounts={() => setPage("accounts")}
+          onDeleteAccount={deleteAccount}
+          onAddFirm={addFirm}
+          onDeleteFirm={deleteFirm}
           onUpdateAccount={updateAccount}
         />
       )}

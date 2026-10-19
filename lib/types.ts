@@ -27,6 +27,8 @@ export type TradingAccount = {
   archived: boolean
 }
 
+export type Firm = { id: string; name: string }
+
 export type AccountTracker = {
   accountId: string
   firm: string
@@ -180,6 +182,7 @@ export type CodexIntegrationStatus = {
 }
 
 export type JournalBootstrap = {
+  firms: Firm[]
   accountTrackers: AccountTracker[]
   profile: Profile
   accounts: TradingAccount[]
@@ -225,6 +228,14 @@ export type DesktopOperationResult = {
 }
 
 export type JournalDesktopApi = {
+  createTrackedAccount: (
+    name: string,
+    color: string,
+    input: AccountTrackerInput,
+  ) => Promise<JournalBootstrap>
+  deleteAccount: (id: string, confirmationName: string) => Promise<JournalBootstrap>
+  addFirm: (name: string) => Promise<Firm>
+  deleteFirm: (id: string) => Promise<void>
   saveAccountTracker: (id: string, input: AccountTrackerInput) => Promise<JournalBootstrap>
   passAccount: (id: string, openingBalance: number) => Promise<JournalBootstrap>
   adjustAccount: (id: string, amount: number, reason: string) => Promise<JournalBootstrap>

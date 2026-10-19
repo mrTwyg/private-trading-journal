@@ -10,6 +10,7 @@ const schema = `
   PRAGMA foreign_keys = ON;
   CREATE TABLE IF NOT EXISTS profile (id TEXT PRIMARY KEY, display_name TEXT NOT NULL, default_currency TEXT NOT NULL, timezone TEXT NOT NULL);
   CREATE TABLE IF NOT EXISTS accounts (id TEXT PRIMARY KEY, name TEXT NOT NULL COLLATE NOCASE UNIQUE, color TEXT NOT NULL DEFAULT 'cyan', archived INTEGER NOT NULL DEFAULT 0 CHECK (archived IN (0, 1)));
+  CREATE TABLE IF NOT EXISTS firms (id TEXT PRIMARY KEY, name TEXT NOT NULL COLLATE NOCASE UNIQUE);
   CREATE TABLE IF NOT EXISTS account_tracking (
     account_id TEXT PRIMARY KEY REFERENCES accounts(id), firm TEXT NOT NULL, status TEXT NOT NULL,
     account_size REAL NOT NULL, opening_balance REAL NOT NULL, starts_at TEXT NOT NULL,
@@ -150,9 +151,15 @@ async function createJournalStore(databasePath) {
     ? new SQL.Database(fs.readFileSync(databasePath))
     : new SQL.Database()
 
+  function exportDatabase() {
+    const bytes = Buffer.from(db.export())
+    // sql.js reopens the connection during export, resetting foreign-key enforcement.
+    db.run("PRAGMA foreign_keys = ON")
+    return bytes
+  }
   function persist() {
     const temporaryPath = `${databasePath}.tmp`
-    fs.writeFileSync(temporaryPath, Buffer.from(db.export()))
+    fs.writeFileSync(temporaryPath, exportDatabase())
     fs.renameSync(temporaryPath, databasePath)
   }
   function ensureColumn(table, column, definition) {
@@ -166,10 +173,15 @@ async function createJournalStore(databasePath) {
 
   function initialize() {
     const version = Number(one(db, "PRAGMA user_version")?.user_version ?? 0)
-    if (version > 5)
+    if (version > 6)
       throw new Error("This journal was created by a newer app. Please update Trading Journal.")
     if (version < 5 && fs.existsSync(databasePath)) {
       const backupPath = `${databasePath}.before-account-tracker-v5.bak`
+      if (!fs.existsSync(backupPath))
+        fs.copyFileSync(databasePath, backupPath, fs.constants.COPYFILE_EXCL)
+    }
+    if (version < 6 && fs.existsSync(databasePath)) {
+      const backupPath = `${databasePath}.before-account-management-v6.bak`
       if (!fs.existsSync(backupPath))
         fs.copyFileSync(databasePath, backupPath, fs.constants.COPYFILE_EXCL)
     }
@@ -185,7 +197,7 @@ async function createJournalStore(databasePath) {
     ensureColumn("profile", "font_mode", "TEXT NOT NULL DEFAULT 'clean'")
     ensureColumn("profile", "motion", "TEXT NOT NULL DEFAULT 'system'")
     ensureColumn("profile", "glow", "TEXT NOT NULL DEFAULT 'subtle'")
-    if (!one(db, "SELECT id FROM accounts LIMIT 1"))
+    if (version < 4 && !one(db, "SELECT id FROM accounts LIMIT 1"))
       run(
         db,
         "INSERT INTO accounts (id, name, color) VALUES ('default-account', 'Default Account', 'cyan')",
@@ -193,9 +205,17 @@ async function createJournalStore(databasePath) {
     const defaultAccount =
       one(db, "SELECT id FROM accounts WHERE archived = 0 ORDER BY name LIMIT 1") ||
       one(db, "SELECT id FROM accounts ORDER BY name LIMIT 1")
-    run(db, "UPDATE trades SET account_id = ? WHERE account_id IS NULL OR account_id = ''", [
-      defaultAccount.id,
-    ])
+    if (version < 4 && defaultAccount)
+      run(db, "UPDATE trades SET account_id = ? WHERE account_id IS NULL OR account_id = ''", [
+        defaultAccount.id,
+      ])
+    if (version < 6) {
+      const names = ["Tradeify", "Apex", "Topstep", "FundedNext Futures", "Alpha Futures"]
+      for (const tracker of rows(db, "SELECT DISTINCT firm FROM account_tracking"))
+        if (cleanShort(tracker.firm, 100)) names.push(cleanShort(tracker.firm, 100))
+      for (const name of names)
+        run(db, "INSERT OR IGNORE INTO firms (id, name) VALUES (?, ?)", [randomUUID(), name])
+    }
     run(db, "UPDATE trades SET symbol = 'NQ' WHERE UPPER(symbol) = 'NQ1!'")
     run(db, "UPDATE trades SET symbol = 'ES' WHERE UPPER(symbol) = 'ES1!'")
     run(db, "UPDATE trades SET symbol = 'MNQ' WHERE UPPER(symbol) = 'MNQ1!'")
@@ -204,7 +224,7 @@ async function createJournalStore(databasePath) {
       db,
       "CREATE UNIQUE INDEX IF NOT EXISTS idx_trades_source_import_id ON trades(source_import_id) WHERE source_import_id IS NOT NULL",
     )
-    run(db, "PRAGMA user_version = 5")
+    run(db, "PRAGMA user_version = 6")
     if (!one(db, "SELECT id FROM profile LIMIT 1")) {
       run(
         db,
@@ -336,6 +356,7 @@ async function createJournalStore(databasePath) {
         archived: Boolean(item.archived),
       })),
       accountTrackers: trackers(),
+      firms: rows(db, "SELECT id, name FROM firms ORDER BY name"),
       setups: rows(db, "SELECT id, name FROM setups ORDER BY name").map((item) => ({
         id: String(item.id),
         name: String(item.name),
@@ -788,7 +809,7 @@ async function createJournalStore(databasePath) {
     run(db, `DELETE FROM ${table} WHERE id = ?`, [id])
     persist()
   }
-  function addAccount(rawName, rawColor) {
+  function addAccount(rawName, rawColor, persistNow = true) {
     const name = cleanShort(rawName, 60),
       color = allowedAccountColors.has(rawColor) ? rawColor : "cyan"
     if (!name) throw new Error("Enter an account name first.")
@@ -796,7 +817,7 @@ async function createJournalStore(databasePath) {
       throw new Error("That account name already exists.")
     const id = randomUUID()
     run(db, "INSERT INTO accounts (id, name, color) VALUES (?, ?, ?)", [id, name, color])
-    persist()
+    if (persistNow) persist()
     return { id, name, color, archived: false }
   }
   function updateAccount(id, changes) {
@@ -822,6 +843,73 @@ async function createJournalStore(databasePath) {
     ])
     persist()
     return { id, name, color, archived }
+  }
+  function createTrackedAccount(name, color, input) {
+    db.run("BEGIN")
+    try {
+      const account = addAccount(name, color, false)
+      saveAccountTracker(account.id, input, false)
+      db.run("COMMIT")
+    } catch (error) {
+      db.run("ROLLBACK")
+      throw error
+    }
+    persist()
+    return bootstrap()
+  }
+  function deleteAccount(id, confirmationName) {
+    const account = one(db, "SELECT name FROM accounts WHERE id = ?", [id])
+    if (!account) throw new Error("Account not found.")
+    if (confirmationName !== account.name)
+      throw new Error("Type the exact account name to confirm permanent deletion.")
+    db.run("BEGIN")
+    try {
+      run(db, "UPDATE account_tracking SET evaluation_id = NULL WHERE evaluation_id = ?", [id])
+      run(db, "DELETE FROM account_adjustments WHERE account_id = ?", [id])
+      run(db, "DELETE FROM account_tracking WHERE account_id = ?", [id])
+      for (const draft of rows(
+        db,
+        "SELECT id, payload_json, missing_fields_json FROM trade_drafts",
+      )) {
+        const payload = parseJson(draft.payload_json, {})
+        if (payload.accountId !== id) continue
+        delete payload.accountId
+        const missing = new Set(parseJson(draft.missing_fields_json, []))
+        missing.add("accountId")
+        run(db, "UPDATE trade_drafts SET payload_json = ?, missing_fields_json = ? WHERE id = ?", [
+          JSON.stringify(payload),
+          JSON.stringify([...missing]),
+          draft.id,
+        ])
+      }
+      run(
+        db,
+        "UPDATE import_receipts SET status = 'undone', trade_id = NULL, message = 'Account permanently deleted.', warnings_json = '[]' WHERE trade_id IN (SELECT id FROM trades WHERE account_id = ?)",
+        [id],
+      )
+      run(db, "DELETE FROM trades WHERE account_id = ?", [id])
+      run(db, "DELETE FROM accounts WHERE id = ?", [id])
+      db.run("COMMIT")
+    } catch (error) {
+      db.run("ROLLBACK")
+      throw error
+    }
+    persist()
+    return bootstrap()
+  }
+  function addFirm(rawName) {
+    const name = cleanShort(rawName, 100)
+    if (!name) throw new Error("Enter a firm name.")
+    if (one(db, "SELECT id FROM firms WHERE name = ? COLLATE NOCASE", [name]))
+      throw new Error("That firm already exists.")
+    const id = randomUUID()
+    run(db, "INSERT INTO firms (id, name) VALUES (?, ?)", [id, name])
+    persist()
+    return { id, name }
+  }
+  function deleteFirm(id) {
+    run(db, "DELETE FROM firms WHERE id = ?", [id])
+    persist()
   }
   function trackers() {
     return rows(
@@ -851,10 +939,10 @@ async function createJournalStore(databasePath) {
       ),
     }))
   }
-  function saveAccountTracker(id, input) {
+  function saveAccountTracker(id, input, persistNow = true) {
     if (!one(db, "SELECT id FROM accounts WHERE id = ?", [id]))
       throw new Error("Account not found.")
-    if (!["evaluation", "live", "blown", "closed"].includes(input.status))
+    if (!input || !["evaluation", "live", "blown", "closed"].includes(input.status))
       throw new Error("Choose a valid account status.")
     if (!cleanShort(input.firm, 100)) throw new Error("Enter a firm.")
     if (
@@ -913,7 +1001,7 @@ async function createJournalStore(databasePath) {
         "INSERT INTO account_tracking (firm, status, account_size, opening_balance, starts_at, purchase_price, purchase_date, discount_code, account_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
         [...values, id],
       )
-    persist()
+    if (persistNow) persist()
     return bootstrap()
   }
   function passAccount(id, openingBalance) {
@@ -1017,7 +1105,7 @@ async function createJournalStore(databasePath) {
       candidate.close()
       throw new Error("The backup appears to be damaged.")
     }
-    if (Number(one(candidate, "PRAGMA user_version")?.user_version ?? 0) > 5) {
+    if (Number(one(candidate, "PRAGMA user_version")?.user_version ?? 0) > 6) {
       candidate.close()
       throw new Error("This backup needs a newer version of Trading Journal.")
     }
@@ -1037,6 +1125,10 @@ async function createJournalStore(databasePath) {
     deleteMetadata,
     addAccount,
     updateAccount,
+    createTrackedAccount,
+    deleteAccount,
+    addFirm,
+    deleteFirm,
     saveAccountTracker,
     passAccount,
     adjustAccount,
@@ -1072,7 +1164,7 @@ async function createJournalStore(databasePath) {
         tags: data.tags.map((item) => item.name),
       }
     },
-    exportDatabase: () => Buffer.from(db.export()),
+    exportDatabase,
     close: () => db.close(),
   }
 }
