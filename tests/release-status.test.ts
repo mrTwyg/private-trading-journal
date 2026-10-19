@@ -12,14 +12,26 @@ describe("release publication", () => {
   it("publishes missing or partial releases even when the tag already exists", () => {
     expect(releaseStatus("1.6.0", null, "1.6.0").shouldRelease).toBe(true)
     expect(releaseStatus("1.6.0", { assets: [asset("Setup")] }, "1.6.0").shouldRelease).toBe(true)
-    expect(releaseStatus("1.6.0", { assets: [asset("Setup", "1.5.1"), asset("Portable", "1.5.1")] }, "1.6.0").shouldRelease).toBe(true)
+    expect(
+      releaseStatus(
+        "1.6.0",
+        { assets: [asset("Setup", "1.5.1"), asset("Portable", "1.5.1")] },
+        "1.6.0",
+      ).shouldRelease,
+    ).toBe(true)
   })
 
   it("skips only a complete published release", () => {
     const release = { assets: [asset("Setup"), asset("Portable")] }
     expect(releaseStatus("1.6.0", release, "1.6.0").shouldRelease).toBe(false)
     expect(releaseStatus("1.6.0", { ...release, draft: true }, "1.6.0").shouldRelease).toBe(true)
-    expect(releaseStatus("1.6.0", { assets: [asset("Setup"), { ...asset("Portable"), size: 0 }] }, "1.6.0").shouldRelease).toBe(true)
+    expect(
+      releaseStatus(
+        "1.6.0",
+        { assets: [asset("Setup"), { ...asset("Portable"), size: 0 }] },
+        "1.6.0",
+      ).shouldRelease,
+    ).toBe(true)
   })
 
   it("rejects a renamed old tag instead of silently skipping or overwriting history", () => {
