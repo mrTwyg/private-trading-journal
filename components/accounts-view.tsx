@@ -23,6 +23,8 @@ import {
   SelectItem,
 } from "@/components/ui/select"
 import { formatMoney } from "@/lib/trading"
+import { accountColors } from "@/components/journal/shared"
+import { DeleteAccountDialog } from "@/components/journal/delete-account-dialog"
 import type {
   AccountTracker,
   AccountTrackerInput,
@@ -34,11 +36,13 @@ import type {
 export function AccountsView({
   accounts,
   trackers,
+  firms,
   api,
   onReload,
 }: {
   accounts: TradingAccount[]
   trackers: AccountTracker[]
+  firms: { id: string; name: string }[]
   api: JournalDesktopApi
   onReload: (data: JournalBootstrap) => void
 }) {
@@ -47,6 +51,8 @@ export function AccountsView({
   const [editing, setEditing] = useState<TradingAccount | null>(null)
   const [draft, setDraft] = useState<AccountTrackerInput | null>(null)
   const [newName, setNewName] = useState("")
+  const [color, setColor] = useState("cyan")
+  const [deleting, setDeleting] = useState<TradingAccount | null>(null)
   const [busy, setBusy] = useState(false)
   const [action, setAction] = useState<{
     type: "pass" | "adjust"
@@ -62,6 +68,7 @@ export function AccountsView({
     try {
       onReload(await operation())
       setEditing(null)
+      setDraft(null)
       setAction(null)
       toast.success("Account updated")
     } catch (cause) {
@@ -70,10 +77,12 @@ export function AccountsView({
       setBusy(false)
     }
   }
-  const edit = (account: TradingAccount) => {
-    const tracker = trackers.find((t) => t.accountId === account.id)
+  const edit = (account: TradingAccount | null) => {
+    const tracker = trackers.find((t) => t.accountId === account?.id)
     setError("")
     setEditing(account)
+    setNewName(account?.name ?? "")
+    setColor(account?.color ?? "cyan")
     setDraft(
       tracker
         ? { ...tracker, status: tracker.status === "passed" ? "closed" : tracker.status }
@@ -132,36 +141,7 @@ export function AccountsView({
         </div>
       </div>
       <section className="panel p-5 space-y-4">
-        <form
-          className="flex flex-wrap gap-2"
-          onSubmit={async (event) => {
-            event.preventDefault()
-            setBusy(true)
-            try {
-              const account = await api.addAccount(newName, "cyan")
-              onReload(await api.load())
-              setNewName("")
-              edit(account)
-            } catch (cause) {
-              toast.error(cause instanceof Error ? cause.message : "Could not create account")
-            } finally {
-              setBusy(false)
-            }
-          }}
-        >
-          <Input
-            aria-label="New trading account name"
-            className="max-w-sm"
-            placeholder="New account name"
-            value={newName}
-            onChange={(event) => setNewName(event.target.value)}
-            required
-            maxLength={60}
-          />
-          <Button type="submit" disabled={busy}>
-            Add account
-          </Button>
-        </form>
+        <Button onClick={() => edit(null)}>Add account</Button>
         <div className="flex flex-wrap gap-3 items-center">
           <Select aria-label="Account status filter" value={filter} onValueChange={setFilter}>
             <SelectTrigger>
@@ -299,6 +279,9 @@ export function AccountsView({
                           Payout / adjustment
                         </Button>
                       )}
+                      <Button variant="destructive" onClick={() => setDeleting(account)}>
+                        Delete account
+                      </Button>
                     </div>
                   </article>
                 )
@@ -306,13 +289,10 @@ export function AccountsView({
           </div>
         </section>
       ))}
-      <Dialog
-        open={Boolean(editing && draft)}
-        onOpenChange={(open) => !busy && !open && setEditing(null)}
-      >
+      <Dialog open={Boolean(draft)} onOpenChange={(open) => !busy && !open && setDraft(null)}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>{editing?.name} · Account tracking</DialogTitle>
+            <DialogTitle>{editing ? "Edit account" : "Add account"}</DialogTitle>
             <DialogDescription>
               All amounts are USD. The opening balance already includes trades before your chosen
               start time.
@@ -322,24 +302,66 @@ export function AccountsView({
             <form
               onSubmit={(event) => {
                 event.preventDefault()
-                if (editing) void run(() => api.saveAccountTracker(editing.id, draft))
+                if (!draft.firm) {
+                  setError("Choose a prop firm. Add custom firms in Setups & tags.")
+                  return
+                }
+                void run(async () => {
+                  if (!editing) return api.createTrackedAccount(newName, color, draft)
+                  await api.updateAccount(editing.id, {
+                    name: newName,
+                    color,
+                    archived: editing.archived,
+                  })
+                  return api.saveAccountTracker(editing.id, draft)
+                })
               }}
             >
               <div className="p-6 space-y-4 max-h-[65vh] overflow-y-auto">
-                <Label htmlFor="tracker-firm">Prop firm</Label>
+                <Label htmlFor="tracker-name">Account name</Label>
                 <Input
-                  id="tracker-firm"
-                  list="tracker-firms"
-                  value={draft.firm}
-                  onChange={(e) => setDraft({ ...draft, firm: e.target.value })}
+                  id="tracker-name"
+                  value={newName}
+                  onChange={(event) => setNewName(event.target.value)}
                   required
-                  maxLength={100}
+                  maxLength={60}
                 />
-                <datalist id="tracker-firms">
-                  {[...new Set(trackers.map((t) => t.firm))].map((firm) => (
-                    <option key={firm} value={firm} />
-                  ))}
-                </datalist>
+                <Label htmlFor="tracker-color">Account colour</Label>
+                <Select aria-label="Account colour" value={color} onValueChange={setColor}>
+                  <SelectTrigger id="tracker-color">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {Object.keys(accountColors).map((value) => (
+                      <SelectItem key={value} value={value} textValue={value}>
+                        <span className="capitalize">{value}</span>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <Label htmlFor="tracker-firm">Prop firm</Label>
+                <Select
+                  aria-label="Prop firm"
+                  value={draft.firm}
+                  onValueChange={(firm) => setDraft({ ...draft, firm })}
+                >
+                  <SelectTrigger id="tracker-firm" className="w-full">
+                    <SelectValue placeholder="Choose a firm" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {[
+                      ...new Set([
+                        ...firms.map((firm) => firm.name),
+                        ...(draft.firm ? [draft.firm] : []),
+                      ]),
+                    ].map((firm) => (
+                      <SelectItem key={firm} value={firm}>
+                        {firm}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground">Manage this list in Setups & tags.</p>
                 <Label htmlFor="tracker-status">Status</Label>
                 <Select
                   aria-label="Account stage"
@@ -369,19 +391,28 @@ export function AccountsView({
                   ).map(([key, label]) => (
                     <div key={key}>
                       <Label htmlFor={key}>{label}</Label>
-                      <Input
-                        id={key}
-                        type="number"
-                        step="0.01"
-                        min={key === "accountSize" ? "0.01" : "0"}
-                        required
-                        value={draft[key]}
-                        disabled={
-                          key === "purchasePrice" &&
-                          Boolean(trackers.find((t) => t.accountId === editing?.id)?.evaluationId)
-                        }
-                        onChange={(e) => setDraft({ ...draft, [key]: Number(e.target.value) })}
-                      />
+                      <div className="relative">
+                        <span
+                          aria-hidden="true"
+                          className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground"
+                        >
+                          $
+                        </span>
+                        <Input
+                          id={key}
+                          className="pl-7"
+                          type="number"
+                          step="0.01"
+                          min={key === "accountSize" ? "0.01" : "0"}
+                          required
+                          value={draft[key]}
+                          disabled={
+                            key === "purchasePrice" &&
+                            Boolean(trackers.find((t) => t.accountId === editing?.id)?.evaluationId)
+                          }
+                          onChange={(e) => setDraft({ ...draft, [key]: Number(e.target.value) })}
+                        />
+                      </div>
                     </div>
                   ))}
                   <div>
@@ -421,12 +452,12 @@ export function AccountsView({
                   type="button"
                   variant="ghost"
                   disabled={busy}
-                  onClick={() => setEditing(null)}
+                  onClick={() => setDraft(null)}
                 >
                   Cancel
                 </Button>
                 <Button type="submit" disabled={busy}>
-                  Save tracking
+                  {editing ? "Save account" : "Create account"}
                 </Button>
               </DialogFooter>
             </form>
@@ -464,15 +495,24 @@ export function AccountsView({
                     ? "Live starting balance (USD)"
                     : "Signed adjustment (USD)"}
                 </Label>
-                <Input
-                  id="action-amount"
-                  type="number"
-                  step="0.01"
-                  min={action.type === "pass" ? 0 : undefined}
-                  required
-                  value={action.amount}
-                  onChange={(e) => setAction({ ...action, amount: e.target.value })}
-                />
+                <div className="relative">
+                  <span
+                    aria-hidden="true"
+                    className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground"
+                  >
+                    $
+                  </span>
+                  <Input
+                    id="action-amount"
+                    className="pl-7"
+                    type="number"
+                    step="0.01"
+                    min={action.type === "pass" ? 0 : undefined}
+                    required
+                    value={action.amount}
+                    onChange={(e) => setAction({ ...action, amount: e.target.value })}
+                  />
+                </div>
                 {action.type === "adjust" && (
                   <>
                     <Label htmlFor="action-reason">Reason</Label>
@@ -508,6 +548,14 @@ export function AccountsView({
           )}
         </DialogContent>
       </Dialog>
+      <DeleteAccountDialog
+        account={deleting}
+        onClose={() => setDeleting(null)}
+        onConfirm={async (account, name) => {
+          onReload(await api.deleteAccount(account.id, name))
+          toast.success("Account permanently deleted")
+        }}
+      />
     </div>
   )
 }

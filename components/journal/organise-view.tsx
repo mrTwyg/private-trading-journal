@@ -1,5 +1,6 @@
 import { useState } from "react"
 import { Plus, Trash2 } from "lucide-react"
+import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import {
@@ -9,71 +10,103 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import type { Setup, Tag, TradingAccount } from "@/lib/types"
+import type { Firm, Setup, Tag, TradingAccount } from "@/lib/types"
 import { accountColors } from "@/components/journal/shared"
+import { DeleteAccountDialog } from "@/components/journal/delete-account-dialog"
 
 export function OrganiseView({
   accounts,
   setups,
   tags,
+  firms,
   onAdd,
   onDelete,
-  onAddAccount,
+  onManageAccounts,
+  onDeleteAccount,
+  onAddFirm,
+  onDeleteFirm,
   onUpdateAccount,
 }: {
   accounts: TradingAccount[]
   setups: Setup[]
   tags: Tag[]
+  firms: Firm[]
   onAdd: (type: "setup" | "tag", name: string) => Promise<void>
   onDelete: (type: "setup" | "tag", id: string) => Promise<void>
-  onAddAccount: (name: string, color: string) => Promise<void>
+  onManageAccounts: () => void
+  onDeleteAccount: (account: TradingAccount, confirmationName: string) => Promise<void>
+  onAddFirm: (name: string) => Promise<void>
+  onDeleteFirm: (id: string) => Promise<void>
   onUpdateAccount: (account: TradingAccount) => Promise<void>
 }) {
   const [setupName, setSetupName] = useState("")
   const [tagName, setTagName] = useState("")
-  const [accountName, setAccountName] = useState("")
-  const [accountColor, setAccountColor] = useState("cyan")
+  const [firmName, setFirmName] = useState("")
+  const [deletingAccount, setDeletingAccount] = useState<TradingAccount | null>(null)
   return (
     <div className="grid gap-5 lg:grid-cols-2">
       <section className="panel p-5 lg:col-span-2">
         <h2 className="font-semibold">Trading accounts</h2>
         <p className="mt-1 text-sm text-muted-foreground">Keep each account on its own calendar.</p>
+        <Button className="mt-5" onClick={onManageAccounts}>
+          Manage accounts
+        </Button>
+        <div className="mt-5 space-y-2">
+          {accounts.map((account) => (
+            <AccountRow
+              key={account.id}
+              account={account}
+              onSave={onUpdateAccount}
+              onDelete={() => setDeletingAccount(account)}
+            />
+          ))}
+        </div>
+      </section>
+      <section className="panel p-5 lg:col-span-2">
+        <h2 className="font-semibold">Prop firms</h2>
+        <p className="mt-1 text-sm text-muted-foreground">
+          These choices appear in the account form. Removing a choice keeps your existing account
+          history.
+        </p>
         <form
-          className="mt-5 flex flex-wrap gap-2"
+          className="mt-5 flex gap-2"
           onSubmit={async (event) => {
             event.preventDefault()
-            if (accountName.trim()) {
-              await onAddAccount(accountName.trim(), accountColor)
-              setAccountName("")
+            try {
+              await onAddFirm(firmName.trim())
+              setFirmName("")
+            } catch (error) {
+              toast.error(error instanceof Error ? error.message : "Could not add firm.")
             }
           }}
         >
           <Input
-            className="min-w-52 flex-1"
-            value={accountName}
-            onChange={(event) => setAccountName(event.target.value)}
-            placeholder="New account name"
-            aria-label="New account name"
+            value={firmName}
+            onChange={(event) => setFirmName(event.target.value)}
+            aria-label="New prop firm name"
+            placeholder="New prop firm"
+            required
+            maxLength={100}
           />
-          <Select aria-label="Account colour" value={accountColor} onValueChange={setAccountColor}>
-            <SelectTrigger className="w-40">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {Object.keys(accountColors).map((color) => (
-                <SelectItem key={color} value={color}>
-                  <span className="capitalize">{color}</span>
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <Button type="submit">
-            <Plus /> Add account
-          </Button>
+          <Button type="submit">Add firm</Button>
         </form>
         <div className="mt-5 space-y-2">
-          {accounts.map((account) => (
-            <AccountRow key={account.id} account={account} onSave={onUpdateAccount} />
+          {firms.map((firm) => (
+            <div key={firm.id} className="organise-row">
+              <span>{firm.name}</span>
+              <Button
+                variant="ghost"
+                size="icon-sm"
+                aria-label={`Remove ${firm.name} from firm choices`}
+                onClick={() =>
+                  void onDeleteFirm(firm.id).catch((error) =>
+                    toast.error(error instanceof Error ? error.message : "Could not remove firm."),
+                  )
+                }
+              >
+                <Trash2 />
+              </Button>
+            </div>
           ))}
         </div>
       </section>
@@ -162,6 +195,11 @@ export function OrganiseView({
           ))}
         </div>
       </section>
+      <DeleteAccountDialog
+        account={deletingAccount}
+        onClose={() => setDeletingAccount(null)}
+        onConfirm={onDeleteAccount}
+      />
     </div>
   )
 }
@@ -169,9 +207,11 @@ export function OrganiseView({
 function AccountRow({
   account,
   onSave,
+  onDelete,
 }: {
   account: TradingAccount
   onSave: (account: TradingAccount) => Promise<void>
+  onDelete: () => void
 }) {
   const [name, setName] = useState(account.name)
   const [color, setColor] = useState(account.color)
@@ -204,6 +244,9 @@ function AccountRow({
         onClick={() => void onSave({ ...account, name, color, archived: !account.archived })}
       >
         {account.archived ? "Restore" : "Archive"}
+      </Button>
+      <Button variant="destructive" onClick={onDelete}>
+        Delete
       </Button>
     </div>
   )

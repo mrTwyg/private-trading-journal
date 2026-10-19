@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react"
+import "@testing-library/jest-dom/vitest"
 import { I18nProvider } from "react-aria-components/I18nProvider"
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest"
 
@@ -13,6 +14,7 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { AccountsView } from "@/components/accounts-view"
+import { DeleteAccountDialog } from "@/components/journal/delete-account-dialog"
 import type { JournalBootstrap, JournalDesktopApi } from "@/lib/types"
 
 beforeAll(() => {
@@ -35,6 +37,75 @@ beforeAll(() => {
 afterEach(cleanup)
 
 describe("React Aria journal controls", () => {
+  it("opens the complete account form before creating anything", () => {
+    const createTrackedAccount = vi.fn()
+    render(
+      <AccountsView
+        accounts={[]}
+        trackers={[]}
+        firms={[]}
+        api={{ createTrackedAccount } as unknown as JournalDesktopApi}
+        onReload={vi.fn()}
+      />,
+    )
+    fireEvent.click(screen.getByRole("button", { name: "Add account" }))
+    expect(screen.getByLabelText("Account name")).toHaveValue("")
+    expect(screen.getByLabelText("Opening balance (USD)")).toHaveValue(50000)
+    expect(screen.getAllByText("$", { exact: true })).toHaveLength(3)
+    fireEvent.click(screen.getByRole("button", { name: "Cancel" }))
+    expect(createTrackedAccount).not.toHaveBeenCalled()
+  })
+
+  it("creates the named account and tracking details together", async () => {
+    const bootstrap = { accounts: [], accountTrackers: [], firms: [] }
+    const createTrackedAccount = vi.fn().mockResolvedValue(bootstrap)
+    const onReload = vi.fn()
+    render(
+      <AccountsView
+        accounts={[]}
+        trackers={[]}
+        firms={[{ id: "topstep", name: "Topstep" }]}
+        api={{ createTrackedAccount } as unknown as JournalDesktopApi}
+        onReload={onReload}
+      />,
+    )
+    fireEvent.click(screen.getByRole("button", { name: "Add account" }))
+    fireEvent.change(screen.getByLabelText("Account name"), { target: { value: "My evaluation" } })
+    fireEvent.click(screen.getByRole("button", { name: /Prop firm/ }))
+    fireEvent.click(screen.getByRole("option", { name: "Topstep" }))
+    fireEvent.click(screen.getByRole("button", { name: "Create account" }))
+    await waitFor(() =>
+      expect(createTrackedAccount).toHaveBeenCalledWith(
+        "My evaluation",
+        "cyan",
+        expect.objectContaining({ firm: "Topstep", openingBalance: 50000, purchasePrice: 0 }),
+      ),
+    )
+    expect(onReload).toHaveBeenCalledWith(bootstrap)
+  })
+
+  it("requires the exact name for deletion and keeps failures open for retry", async () => {
+    const account = { id: "account", name: "Keep safe", color: "cyan", archived: false }
+    const onConfirm = vi
+      .fn()
+      .mockRejectedValueOnce(new Error("Storage unavailable"))
+      .mockResolvedValueOnce(undefined)
+    const onClose = vi.fn()
+    render(<DeleteAccountDialog account={account} onConfirm={onConfirm} onClose={onClose} />)
+    const button = screen.getByRole("button", { name: "Delete permanently" })
+    const name = screen.getByLabelText("Type the exact account name: Keep safe")
+    expect(button).toBeDisabled()
+    fireEvent.change(name, { target: { value: "keep safe" } })
+    expect(button).toBeDisabled()
+    fireEvent.change(name, { target: { value: account.name } })
+    fireEvent.click(button)
+    expect(await screen.findByRole("alert")).toHaveTextContent("Storage unavailable")
+    expect(onClose).not.toHaveBeenCalled()
+    fireEvent.click(screen.getByRole("button", { name: "Delete permanently" }))
+    await waitFor(() => expect(onClose).toHaveBeenCalledOnce())
+    expect(onConfirm).toHaveBeenLastCalledWith(account, account.name)
+  })
+
   it("shows the tracked balance and confirms a fresh live account before passing", async () => {
     const accounts = [
       { id: "evaluation-id", name: "Evaluation one", color: "cyan", archived: false },
@@ -61,6 +132,7 @@ describe("React Aria journal controls", () => {
       <AccountsView
         accounts={accounts}
         trackers={trackers}
+        firms={[{ id: "example", name: "Example" }]}
         api={{ passAccount } as unknown as JournalDesktopApi}
         onReload={onReload}
       />,
