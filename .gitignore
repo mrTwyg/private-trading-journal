@@ -53,6 +53,8 @@ next-env.d.ts
 *.sqlite
 *.sqlite-shm
 *.sqlite-wal
+*.sqlite.before-account-tracker-v5.bak
+*.sqlite.tmp
 *.db
 *.db-shm
 *.db-wal

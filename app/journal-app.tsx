@@ -65,6 +65,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
 import { Badge } from "@/components/ui/badge"
+import { AccountsView } from "@/components/accounts-view"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
 import { DateTimeField } from "@/components/ui/date-time-field"
@@ -116,6 +117,7 @@ import {
   calendarDays,
   defaultTradeDateTime,
   formatMoney,
+  formatTradePnl,
   formatR,
   periodLabel,
   shiftAnchor,
@@ -123,9 +125,10 @@ import {
   tradesForDay,
 } from "@/lib/trading"
 
-type Page = "calendar" | "trades" | "inbox" | "organise" | "settings"
+type Page = "calendar" | "trades" | "accounts" | "inbox" | "organise" | "settings"
 
 const pageCopy: Record<Page, { title: string; description: string }> = {
+  accounts: { title: "Accounts", description: "Track purchases, balances and progress." },
   calendar: { title: "Calendar", description: "Review the shape of your trading." },
   trades: { title: "Trade journal", description: "Every decision, in one place." },
   inbox: { title: "Codex inbox", description: "Review voice and screenshot imports." },
@@ -134,6 +137,7 @@ const pageCopy: Record<Page, { title: string; description: string }> = {
 }
 
 const navItems: { id: Page; label: string; icon: typeof CalendarDays }[] = [
+  { id: "accounts", label: "Accounts", icon: HardDrive },
   { id: "calendar", label: "Calendar", icon: CalendarDays },
   { id: "trades", label: "Trades", icon: BookOpen },
   { id: "inbox", label: "Inbox", icon: Inbox },
@@ -262,6 +266,7 @@ function TradeFormDialog({
   onOpenChange,
   profile,
   accounts,
+  trackers,
   selectedAccountId,
   setups,
   tags,
@@ -274,6 +279,7 @@ function TradeFormDialog({
   onOpenChange: (open: boolean) => void
   profile: Profile
   accounts: TradingAccount[]
+  trackers: JournalBootstrap["accountTrackers"]
   selectedAccountId: string
   setups: Setup[]
   tags: Tag[]
@@ -283,7 +289,7 @@ function TradeFormDialog({
   onSave: (draft: TradeFormValues, image: File | null, removeImage: boolean) => Promise<void>
 }) {
   const emptyDraft = (): TradeFormValues => ({
-    accountId: trade?.accountId ?? (selectedAccountId !== "all" ? selectedAccountId : accounts.find((account) => !account.archived)?.id ?? ""),
+    accountId: trade?.accountId ?? accounts.find((account) => !account.archived && (selectedAccountId === "all" || account.id === selectedAccountId) && !trackers.some((t) => t.accountId === account.id && ["passed", "blown", "closed"].includes(t.status)))?.id ?? "",
     tradedAt: defaultTradeDateTime(trade?.tradedAt ?? importDraft?.tradedAt ?? undefined, selectedDay),
     symbol: trade?.symbol ?? importDraft?.symbol ?? "",
     direction: trade?.direction ?? importDraft?.direction ?? "long",
@@ -350,6 +356,7 @@ function TradeFormDialog({
     if (!draft.symbol.trim()) return setError("Enter an instrument or symbol.")
     if (!Number.isFinite(draft.riskAmount) || draft.riskAmount <= 0) return setError("Risk must be greater than zero.")
     if (draft.outcome !== "breakeven" && draft.resultAmount <= 0) return setError("Enter how much the trade won or lost.")
+    if (draft.markAccountBlown && !window.confirm(`Mark ${accounts.find((account) => account.id === draft.accountId)?.name} as blown when this trade is saved? Its trade history will remain available.`)) return
     setSaving(true)
     setError("")
     try {
@@ -377,7 +384,7 @@ function TradeFormDialog({
             </div>
           )}
           <div className="grid gap-4 sm:grid-cols-2">
-            <Field label="Account" htmlFor="account"><AccountSelect id="account" accounts={accounts} value={draft.accountId} onChange={(accountId) => setDraft({ ...draft, accountId })} includeAll={false} /></Field>
+            <Field label="Account" htmlFor="account"><AccountSelect id="account" accounts={accounts.filter((a) => a.id === trade?.accountId || !trackers.some((t) => t.accountId === a.id && ["passed", "blown", "closed"].includes(t.status)))} value={draft.accountId} onChange={(accountId) => setDraft({ ...draft, accountId, markAccountBlown: false })} includeAll={false} /></Field>
             <Field label="Date and time" htmlFor="tradedAt">
               <DateTimeField id="tradedAt" value={draft.tradedAt} onChange={(tradedAt) => setDraft({ ...draft, tradedAt })} />
             </Field>
@@ -401,6 +408,8 @@ function TradeFormDialog({
             </Field>
           </div>
 
+          {trackers.some((t) => t.accountId === draft.accountId) && <p className="text-sm text-muted-foreground">{trade ? `Trade currency: ${trade.currency}. Historical currencies are preserved.` : "Tracked account: risk and result are recorded in USD."}</p>}
+          {trackers.some((t) => t.accountId === draft.accountId && ["evaluation", "live"].includes(t.status)) && <label className="flex items-center gap-2 text-sm"><Checkbox checked={Boolean(draft.markAccountBlown)} onCheckedChange={(checked) => setDraft({ ...draft, markAccountBlown: Boolean(checked) })} />This trade blew the account</label>}
           <Field label="Setup description" htmlFor="setup-description">
             <Textarea id="setup-description" rows={3} placeholder="London low sweep → bullish SMT → 1m IFVG" value={draft.setupDescription} onChange={(event) => setDraft({ ...draft, setupDescription: event.target.value })} />
           </Field>
@@ -425,7 +434,7 @@ function TradeFormDialog({
           </fieldset>
 
           <div className="grid gap-4 sm:grid-cols-2">
-            <Field label={`Risked (${profile.defaultCurrency})`} htmlFor="riskAmount">
+            <Field label={`Risked (${trade?.currency ?? (trackers.some((t) => t.accountId === draft.accountId) ? "USD" : profile.defaultCurrency)})`} htmlFor="riskAmount">
               <Input id="riskAmount" type="number" min="0.01" step="0.01" inputMode="decimal" value={draft.riskAmount || ""} onChange={(event) => { const riskAmount = Number(event.target.value); setDraft({ ...draft, riskAmount, resultAmount: draft.outcome === "loss" ? riskAmount : draft.resultAmount }) }} required />
             </Field>
             <Field label={draft.outcome === "win" ? "Amount won" : draft.outcome === "loss" ? "Amount lost (same as risk)" : "Result"} htmlFor="resultAmount">
@@ -544,10 +553,10 @@ function CalendarView({
     <div className="space-y-5">
       <div className="flex justify-end"><AccountSelect accounts={accounts} value={selectedAccountId} onChange={onAccountChange} /></div>
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-        <StatCard label={`${view === "week" ? "Weekly" : "Monthly"} net P&L`} value={formatMoney(summary.pnl, currency)} meta={`${summary.count} ${summary.count === 1 ? "trade" : "trades"}`} tone={summary.pnl > 0 ? "positive" : summary.pnl < 0 ? "negative" : "neutral"} />
+        <StatCard label={`${view === "week" ? "Weekly" : "Monthly"} net P&L`} value={formatTradePnl(rangeTrades, currency)} meta={`${summary.count} ${summary.count === 1 ? "trade" : "trades"}`} tone={new Set(rangeTrades.map((t) => t.currency)).size > 1 ? "neutral" : summary.pnl > 0 ? "positive" : summary.pnl < 0 ? "negative" : "neutral"} />
         <StatCard label="Total R" value={formatR(summary.r)} meta="Risk-adjusted return" tone={summary.r > 0 ? "positive" : summary.r < 0 ? "negative" : "neutral"} />
         <StatCard label="Win rate" value={`${winRate.toFixed(0)}%`} meta={`${summary.count} ${summary.count === 1 ? "trade" : "trades"} · ${summary.win}W · ${summary.loss}L · ${summary.breakeven}B/E`} />
-        <StatCard label="Today" value={formatMoney(aggregateTrades(todayTrades).pnl, currency)} meta={`${todayTrades.length} ${todayTrades.length === 1 ? "trade" : "trades"}`} tone={aggregateTrades(todayTrades).pnl > 0 ? "positive" : aggregateTrades(todayTrades).pnl < 0 ? "negative" : "neutral"} />
+        <StatCard label="Today" value={formatTradePnl(todayTrades, currency)} meta={`${todayTrades.length} ${todayTrades.length === 1 ? "trade" : "trades"}`} />
       </div>
 
       <section className="calendar-shell" aria-label={`${view} trading calendar`}>
@@ -576,12 +585,12 @@ function CalendarView({
                 type="button"
                 onClick={() => onSelectDay(day)}
                 className={cn("calendar-day", outside && "calendar-day-outside", isSameDay(day, new Date()) && "calendar-day-today")}
-                aria-label={`${format(day, "EEEE d MMMM")}, ${dayTrades.length} trades, ${formatMoney(daySummary.pnl, currency)}`}
+                aria-label={`${format(day, "EEEE d MMMM")}, ${dayTrades.length} trades, ${formatTradePnl(dayTrades, currency)}`}
               >
                 <span className="calendar-date">{format(day, "d")}</span>
                 {dayTrades.length > 0 ? (
                   <>
-                    <span className={cn("calendar-pnl", daySummary.pnl > 0 && "text-[var(--success)]", daySummary.pnl < 0 && "text-[var(--loss)]")}>{formatMoney(daySummary.pnl, currency)}</span>
+                    <span className={cn("calendar-pnl", new Set(dayTrades.map((t) => t.currency)).size <= 1 && (daySummary.pnl > 0 ? "text-[var(--success)]" : daySummary.pnl < 0 ? "text-[var(--loss)]" : ""))}>{formatTradePnl(dayTrades, currency)}</span>
                     <span className="calendar-count">{dayTrades.length} {dayTrades.length === 1 ? "trade" : "trades"}</span>
                     {view === "week" && <span className="calendar-r">{formatR(daySummary.r)}</span>}
                   </>
@@ -730,6 +739,7 @@ function JournalWorkspace({ initial, api }: { initial: JournalBootstrap; api: Jo
   const [page, setPage] = useState<Page>("calendar")
   const [trades, setTrades] = useState(initial.trades)
   const [accounts, setAccounts] = useState(initial.accounts)
+  const [trackers, setTrackers] = useState(initial.accountTrackers)
   const [setups, setSetups] = useState(initial.setups)
   const [tags, setTags] = useState(initial.tags)
   const [drafts, setDrafts] = useState(initial.drafts)
@@ -746,6 +756,13 @@ function JournalWorkspace({ initial, api }: { initial: JournalBootstrap; api: Jo
   const [codexStatus, setCodexStatus] = useState<CodexIntegrationStatus | null>(null)
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
   const [selectedAccountId, setSelectedAccountId] = useState("all")
+  const reloadAccounts = (data: JournalBootstrap) => { setAccounts(data.accounts); setTrackers(data.accountTrackers) }
+
+  useEffect(() => {
+    let current = true
+    api.load().then((data) => { if (current) { setAccounts(data.accounts); setTrackers(data.accountTrackers) } }).catch(() => toast.error("Could not refresh account balances."))
+    return () => { current = false }
+  }, [api, trades])
 
   useEffect(() => {
     api.dataLocation().then(setDataLocation).catch(() => setDataLocation("Your private app data folder"))
@@ -795,6 +812,7 @@ function JournalWorkspace({ initial, api }: { initial: JournalBootstrap; api: Jo
     const pnl = signedPnl(draft.outcome, draft.resultAmount)
     const payload = {
       accountId: draft.accountId,
+      markAccountBlown: draft.markAccountBlown,
       tradedAt: new Date(draft.tradedAt).toISOString(),
       symbol: draft.symbol,
       direction: draft.direction,
@@ -882,6 +900,7 @@ function JournalWorkspace({ initial, api }: { initial: JournalBootstrap; api: Jo
     if (result.canceled || !result.data) return
     setTrades(result.data.trades)
     setAccounts(result.data.accounts)
+    setTrackers(result.data.accountTrackers)
     setSetups(result.data.setups)
     setTags(result.data.tags)
     setProfile(result.data.profile)
@@ -922,6 +941,7 @@ function JournalWorkspace({ initial, api }: { initial: JournalBootstrap; api: Jo
           <Button size="lg" onClick={() => openNewTrade()}><Plus /> Log trade</Button>
         </header>
         <main id="main-content" className="main-workspace" tabIndex={-1}>
+          {page === "accounts" && <AccountsView accounts={accounts} trackers={trackers} api={api} onReload={reloadAccounts} />}
           {page === "calendar" && <CalendarView trades={visibleTrades} accounts={accounts} selectedAccountId={selectedAccountId} onAccountChange={(id) => { setSelectedAccountId(id); setSelectedDay(null) }} currency={profile.defaultCurrency} onSelectDay={setSelectedDay} onSelectTrade={setSelectedTrade} />}
           {page === "trades" && <TradesView trades={visibleTrades} accounts={accounts} selectedAccountId={selectedAccountId} onAccountChange={setSelectedAccountId} onSelectTrade={setSelectedTrade} />}
           {page === "inbox" && <InboxView drafts={drafts} onReview={(draft) => { setEditingTrade(null); setEditingDraft(draft); setFormOpen(true) }} onDelete={deleteCodexDraft} />}
@@ -930,11 +950,11 @@ function JournalWorkspace({ initial, api }: { initial: JournalBootstrap; api: Jo
         </main>
       </div>
 
-      <TradeFormDialog open={formOpen} onOpenChange={(open) => { setFormOpen(open); if (!open) { setEditingTrade(null); setEditingDraft(null); setNewTradeDay(null) } }} profile={profile} accounts={accounts} selectedAccountId={selectedAccountId} setups={setups} tags={tags} trade={editingTrade} importDraft={editingDraft} selectedDay={newTradeDay} onSave={saveTrade} />
+      <TradeFormDialog open={formOpen} onOpenChange={(open) => { setFormOpen(open); if (!open) { setEditingTrade(null); setEditingDraft(null); setNewTradeDay(null) } }} profile={profile} accounts={accounts} trackers={trackers} selectedAccountId={selectedAccountId} setups={setups} tags={tags} trade={editingTrade} importDraft={editingDraft} selectedDay={newTradeDay} onSave={saveTrade} />
 
       <Sheet open={Boolean(selectedDay)} onOpenChange={(open) => !open && setSelectedDay(null)}>
         <SheetContent className="w-full overflow-y-auto border-[var(--border-strong)] bg-[var(--surface-1)] sm:max-w-lg">
-          <SheetHeader><SheetTitle>{selectedDay ? format(selectedDay, "EEEE, d MMMM") : "Trading day"}</SheetTitle><SheetDescription>{dayTrades.length ? `${dayTrades.length} ${dayTrades.length === 1 ? "trade" : "trades"} · ${formatMoney(aggregateTrades(dayTrades).pnl, profile.defaultCurrency)}` : "No trades logged."}</SheetDescription>{selectedDay && <Button className="mt-4" onClick={() => openNewTrade(selectedDay)}><Plus /> Log a trade for this day</Button>}</SheetHeader>
+          <SheetHeader><SheetTitle>{selectedDay ? format(selectedDay, "EEEE, d MMMM") : "Trading day"}</SheetTitle><SheetDescription>{dayTrades.length ? `${dayTrades.length} ${dayTrades.length === 1 ? "trade" : "trades"} · ${formatTradePnl(dayTrades, profile.defaultCurrency)}` : "No trades logged."}</SheetDescription>{selectedDay && <Button className="mt-4" onClick={() => openNewTrade(selectedDay)}><Plus /> Log a trade for this day</Button>}</SheetHeader>
           <div className="border-t border-border">{dayTrades.map((trade) => <TradeRow key={trade.id} trade={trade} onClick={() => setSelectedTrade(trade)} />)}{!dayTrades.length && <div className="empty-state"><CalendarDays /><h3>Clear day</h3><p>No trades were logged on this date.</p></div>}</div>
         </SheetContent>
       </Sheet>

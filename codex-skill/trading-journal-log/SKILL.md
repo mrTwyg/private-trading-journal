@@ -30,6 +30,7 @@ Anonymized examples:
 
 1. Read the local config and current journal context. Interpret relative dates in the saved timezone and include an ISO-8601 offset.
 2. Extract only supported facts. Use absolute result amounts; the journal applies the outcome sign and calculates R.
+   Match the user's account name to `accountDetails` and include its `accountId`. Do not guess an account or currency. Tracked accounts use USD; ambiguous account selection waits as a draft.
 3. When a screenshot has a resolvable local path, include it. The submission script calculates its checksum. If the attachment has no accessible path, omit it and mention that it was not imported.
 4. Create one schema-v1 JSON manifest in a temporary workspace location. Give every required field an explicit confidence value.
 5. Submit it atomically with `scripts/submit-trade.ps1 -ManifestPath <absolute-json-path>`.

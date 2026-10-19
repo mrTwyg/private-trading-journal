@@ -27,6 +27,23 @@ export type TradingAccount = {
   archived: boolean
 }
 
+export type AccountTracker = {
+  accountId: string
+  firm: string
+  status: "evaluation" | "live" | "passed" | "blown" | "closed"
+  accountSize: number
+  openingBalance: number
+  startsAt: string
+  purchasePrice: number
+  purchaseDate: string
+  discountCode: string
+  evaluationId: string | null
+  balance: number
+  adjustments: { id: string; amount: number; reason: string; createdAt: string }[]
+}
+
+export type AccountTrackerInput = Omit<AccountTracker, "accountId" | "balance" | "evaluationId" | "adjustments" | "status"> & { status: "evaluation" | "live" | "blown" | "closed" }
+
 export type TradeImage = {
   id: string
   tradeId: string
@@ -76,6 +93,7 @@ export type Profile = {
 }
 
 export type TradeFormValues = {
+  markAccountBlown?: boolean
   accountId: string
   tradedAt: string
   symbol: string
@@ -93,6 +111,7 @@ export type CodexRequiredField = "tradedAt" | "symbol" | "direction" | "riskAmou
 export type ImportFieldConfidence = "explicit" | "inferred" | "uncertain" | "missing"
 
 export type CodexTradeImportV1 = {
+  accountId?: string | null
   schemaVersion: 1
   importId: string
   source: "codex"
@@ -155,6 +174,7 @@ export type CodexIntegrationStatus = {
 }
 
 export type JournalBootstrap = {
+  accountTrackers: AccountTracker[]
   profile: Profile
   accounts: TradingAccount[]
   trades: Trade[]
@@ -165,6 +185,7 @@ export type JournalBootstrap = {
 }
 
 export type DesktopTradePayload = {
+  markAccountBlown?: boolean
   accountId: string
   tradedAt: string
   symbol: string
@@ -198,6 +219,9 @@ export type DesktopOperationResult = {
 }
 
 export type JournalDesktopApi = {
+  saveAccountTracker: (id: string, input: AccountTrackerInput) => Promise<JournalBootstrap>
+  passAccount: (id: string, openingBalance: number) => Promise<JournalBootstrap>
+  adjustAccount: (id: string, amount: number, reason: string) => Promise<JournalBootstrap>
   load: () => Promise<JournalBootstrap>
   saveTrade: (input: DesktopSaveTradeInput) => Promise<Trade>
   duplicateTrade: (id: string) => Promise<Trade>

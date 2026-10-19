@@ -40,6 +40,7 @@ A manifest has this shape:
 Rules:
 
 - Allowed instrument: `NQ`, `ES`, `MNQ`, or `MES` (older `NQ1!`-style names are normalized).
+- Include `accountId` from `journal-context.json` → `accountDetails`, matching the account named by the user. Tracked accounts use USD. Never guess which account the user traded; missing or unavailable accounts create a review draft when tracking is enabled.
 - Allowed direction: `long`, `short`.
 - Allowed outcome: `win`, `loss`, `breakeven`.
 - Confidence: `explicit`, `inferred`, `uncertain`, `missing`.

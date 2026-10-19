@@ -64,6 +64,20 @@ Do not bypass the warning for a copy downloaded from an unknown website or sent 
 - Use accessible, keyboard-friendly dropdowns plus separate calendar and 24-hour time controls.
 - Use the compact collapsible navigation and integrated Windows title bar without losing native snap, minimise, maximise, or close behaviour.
 
+## Tracking prop-firm accounts
+
+Open **Accounts** to record each purchased account separately. Group by firm and switch between Active, History, Not tracked, and All accounts. Track the initial purchase price, purchase date, discount code, account size, and balance in USD. The purchase price is the final amount paid after any discount.
+
+Existing accounts are left untracked after updating. Choose **Not tracked → Enable tracking**, enter the current opening balance, and choose a date and time after the trades already included in that balance. Your older trades, screenshots, currencies, settings, and calendar assignments stay saved. New trades on tracked accounts use USD; historical currencies are never converted. The calendar shows separate currency totals when needed.
+
+Balances are opening balance plus USD trade results from the chosen start time, plus adjustments. Editing, deleting, duplicating, or moving trades recalculates balances. Use **Payout / adjustment** for withdrawals (negative) or credits (positive); adjustments do not change trade P&L. Record a corrective adjustment if a previous adjustment was wrong.
+
+Choose **Move to Live** on an evaluation and confirm the fresh starting balance. The evaluation becomes **Passed** with its history and purchase cost intact. A linked account named **Original name — Live** starts with no trades and zero additional purchase cost. Passed, Blown, and Closed accounts appear in History. Blown and Closed can be corrected using Edit tracking. New trades cannot be added to historical accounts.
+
+The trade form offers **This trade blew the account**, followed by confirmation. This status changes only if the trade saves successfully. Deleting that trade recalculates the balance but does not automatically reopen the account; correct the status separately if necessary.
+
+Before the first upgrade to account tracking, the app saves an untouched copy beside the database named `trading-journal.sqlite.before-account-tracker-v5.bak`. Keep it and make regular backups through Settings. Older app versions should not be used to open an upgraded journal. If you use the Codex helper, reinstall it in Settings after updating so it can include account IDs; ambiguous account imports will wait for review.
+
 ## Changing the journal appearance
 
 Open **Settings → Appearance**. Theme changes preview immediately; select **Save appearance** to keep them after closing the app.

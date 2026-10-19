@@ -7,12 +7,16 @@ import {
   calendarDays,
   defaultTradeDateTime,
   signedPnl,
+  formatTradePnl,
 } from "../lib/trading"
 import type { Trade } from "../lib/types"
 
 afterEach(() => vi.useRealTimers())
 
 describe("trade result calculations", () => {
+  it("shows separate totals rather than adding USD to historical GBP", () => {
+    expect(formatTradePnl([{ currency: "USD", pnlAmount: 250 }, { currency: "GBP", pnlAmount: 100 }] as Trade[], "GBP")).toBe("US$250.00 / £100.00")
+  })
   it("turns the manually selected outcome into a signed P&L", () => {
     expect(signedPnl("win", 250)).toBe(250)
     expect(signedPnl("loss", 250)).toBe(-250)

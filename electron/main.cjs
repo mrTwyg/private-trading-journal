@@ -24,6 +24,9 @@ app.setAppUserModelId("local.tradingjournal.desktop")
 
 function registerHandlers() {
   ipcMain.handle("journal:load", () => store.bootstrap())
+  ipcMain.handle("journal:save-account-tracker", (_event, id, input) => { const result = store.saveAccountTracker(id, input); codexInbox.refreshContext(); return result })
+  ipcMain.handle("journal:pass-account", (_event, id, balance) => { const result = store.passAccount(id, balance); codexInbox.refreshContext(); return result })
+  ipcMain.handle("journal:adjust-account", (_event, id, amount, reason) => store.adjustAccount(id, amount, reason))
   ipcMain.handle("journal:save-trade", (_event, input) => store.saveTrade(input))
   ipcMain.handle("journal:duplicate-trade", (_event, id) => store.duplicateTrade(id))
   ipcMain.handle("journal:delete-trade", (_event, id) => store.deleteTrade(id))
