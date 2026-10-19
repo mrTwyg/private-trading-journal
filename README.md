@@ -237,6 +237,8 @@ For the next release, update the version in both `package.json` and `package-loc
 Useful development commands:
 
 ```powershell
+npm run format
+npm run format:check
 npm run dev
 npm run build
 npm run desktop
@@ -245,6 +247,36 @@ npm test
 ```
 
 `npm run dev` shows only the browser interface. It cannot open the private SQLite database because database access is deliberately limited to the desktop application. To test the real local-storage flow, run `npm run build` followed by `npm run desktop`.
+
+### Updating and running your existing local journal
+
+First use **Settings → Back up journal**, save the backup outside this project folder, and close every Trading Journal window. From a clean checkout on `main`, run:
+
+```powershell
+git pull --ff-only
+npm ci
+npm run build
+npm run desktop
+```
+
+Run these commands under the same Windows account as before. The desktop app opens the existing journal in your Windows app-data folder; it does not store trades in this source checkout. Do not delete or replace that data folder. After launch, check the storage path in Settings and a few saved trades and screenshots. The browser-only development server does not have desktop database access.
+
+After a source change, close the desktop app, run `npm run build` again, then `npm run desktop`. No installer is needed. Formatting and source-file moves do not migrate or edit journal data.
+
+### Finding your way around the source
+
+- `app/journal-app.tsx`: desktop connection, loading and error states.
+- `components/journal/journal-workspace.tsx`: shared journal state and screen wiring.
+- `components/journal/`: individual calendar, trades, form, settings, inbox and organisation screens, plus the shell and trade sheets.
+- `components/accounts-view.tsx`: prop-firm purchases, balances and evaluation-to-live transitions.
+- `components/ui/`: shared accessible controls such as buttons, dropdowns, dialogs, and date/time fields.
+- `lib/`: shared types, trade calculations, and formatting helpers.
+- `electron/main.cjs` and `electron/preload.cjs`: desktop startup and the renderer-to-desktop bridge.
+- `electron/database.cjs`: SQLite persistence and schema migrations. Treat changes here as data changes and test against a backup.
+- `codex-skill/`: the bundled optional Codex logging helper.
+- `tests/`: regression tests; `.github/workflows/quality.yml` runs formatting, tests, lint, and build for pull requests.
+
+Use `npm run format` before committing to apply the shared Prettier style. `npm run format:check` checks without editing files. The style uses two spaces, double quotes, no semicolons, and a 100-character preferred line width. Editors with Prettier support can use `.prettierrc.json`; `.editorconfig` also sets basic indentation and line endings. Generated files, packaged releases, third-party vendor code, and local journal data are excluded from formatting.
 
 Before distributing a release:
 

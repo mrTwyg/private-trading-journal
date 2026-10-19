@@ -42,7 +42,10 @@ export type AccountTracker = {
   adjustments: { id: string; amount: number; reason: string; createdAt: string }[]
 }
 
-export type AccountTrackerInput = Omit<AccountTracker, "accountId" | "balance" | "evaluationId" | "adjustments" | "status"> & { status: "evaluation" | "live" | "blown" | "closed" }
+export type AccountTrackerInput = Omit<
+  AccountTracker,
+  "accountId" | "balance" | "evaluationId" | "adjustments" | "status"
+> & { status: "evaluation" | "live" | "blown" | "closed" }
 
 export type TradeImage = {
   id: string
@@ -107,7 +110,8 @@ export type TradeFormValues = {
   noteHtml: string
 }
 
-export type CodexRequiredField = "tradedAt" | "symbol" | "direction" | "riskAmount" | "outcome" | "resultAmount"
+export type CodexRequiredField =
+  "tradedAt" | "symbol" | "direction" | "riskAmount" | "outcome" | "resultAmount"
 export type ImportFieldConfidence = "explicit" | "inferred" | "uncertain" | "missing"
 
 export type CodexTradeImportV1 = {
@@ -130,7 +134,9 @@ export type CodexTradeImportV1 = {
     path: string
     sha256: string
   } | null
-  fieldConfidence?: Partial<Record<CodexRequiredField | "setupDescription" | "noteHtml" | "tags", ImportFieldConfidence>>
+  fieldConfidence?: Partial<
+    Record<CodexRequiredField | "setupDescription" | "noteHtml" | "tags", ImportFieldConfidence>
+  >
   inferredFields?: string[]
   missingFields?: string[]
 }
@@ -229,7 +235,10 @@ export type JournalDesktopApi = {
   addMetadata: (type: "setup" | "tag", name: string) => Promise<Setup | Tag>
   deleteMetadata: (type: "setup" | "tag", id: string) => Promise<void>
   addAccount: (name: string, color: string) => Promise<TradingAccount>
-  updateAccount: (id: string, changes: Pick<TradingAccount, "name" | "color" | "archived">) => Promise<TradingAccount>
+  updateAccount: (
+    id: string,
+    changes: Pick<TradingAccount, "name" | "color" | "archived">,
+  ) => Promise<TradingAccount>
   saveProfile: (profile: Profile) => Promise<Profile>
   backup: () => Promise<DesktopOperationResult>
   restore: () => Promise<DesktopOperationResult>

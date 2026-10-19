@@ -23,28 +23,31 @@ describe("UI revamp architecture", () => {
   })
 
   it("renders the precision shell and accessible date-time control", () => {
-    const app = read("app/journal-app.tsx")
-    expect(app).toContain('className="app-titlebar"')
-    expect(app).toContain("<DateTimeField")
-    expect(app).toContain('["NQ", "ES", "MNQ", "MES"]')
+    expect(read("components/journal/journal-shell.tsx")).toContain('className="app-titlebar"')
+    const form = read("components/journal/trade-form-dialog.tsx")
+    expect(form).toContain("<DateTimeField")
+    expect(form).toContain('["NQ", "ES", "MNQ", "MES"]')
   })
 
   it("keeps calendar-date logging and screenshot zoom discoverable", () => {
-    const app = read("app/journal-app.tsx")
-    expect(app).toContain("Log a trade for this day")
-    expect(app).toContain('aria-label="Enlarge trade screenshot"')
+    expect(read("components/journal/day-trades-sheet.tsx")).toContain("Log a trade for this day")
+    expect(read("components/journal/trade-details-sheet.tsx")).toContain(
+      'aria-label="Enlarge trade screenshot"',
+    )
   })
 
   it("centres dialog content inside the wide modal viewport", () => {
     const dialog = read("components/ui/dialog.tsx")
     expect(dialog).toContain('className="flex w-full max-w-[95vw] justify-center')
-    expect(dialog).toContain('className={cn("relative mx-auto')
+    expect(dialog).toMatch(/className=\{cn\(\s*"relative mx-auto/)
   })
 
   it("supports separate account calendars and defaults new trades to the selected account", () => {
-    const app = read("app/journal-app.tsx")
-    expect(app).toContain('selectedAccountId === "all" || account.id === selectedAccountId')
-    expect(app).toContain('<Field label="Account"')
-    expect(app).toContain('trades.filter((trade) => trade.accountId === selectedAccountId)')
+    const form = read("components/journal/trade-form-dialog.tsx")
+    expect(form).toContain('selectedAccountId === "all" || account.id === selectedAccountId')
+    expect(form).toContain('<Field label="Account"')
+    expect(read("components/journal/journal-workspace.tsx")).toContain(
+      "trades.filter((trade) => trade.accountId === selectedAccountId)",
+    )
   })
 })

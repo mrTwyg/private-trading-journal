@@ -11,9 +11,11 @@ const buttonVariants = cva(
   {
     variants: {
       variant: {
-        default: "bg-primary text-primary-foreground shadow-[0_8px_24px_var(--accent-glow)] hover:brightness-105",
+        default:
+          "bg-primary text-primary-foreground shadow-[0_8px_24px_var(--accent-glow)] hover:brightness-105",
         destructive: "bg-destructive text-white hover:brightness-105",
-        outline: "border-border-strong bg-[var(--surface-2)] text-foreground shadow-sm hover:border-[var(--accent-cyan)] hover:bg-[var(--surface-3)]",
+        outline:
+          "border-border-strong bg-[var(--surface-2)] text-foreground shadow-sm hover:border-[var(--accent-cyan)] hover:bg-[var(--surface-3)]",
         secondary: "border-border bg-secondary text-secondary-foreground hover:bg-accent",
         ghost: "text-muted-foreground hover:bg-accent hover:text-foreground",
         link: "text-primary underline-offset-4 hover:underline",
@@ -43,7 +45,15 @@ const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(function Button(
   { className, variant = "default", size = "default", disabled, ...props },
   ref,
 ) {
-  return <AriaButton ref={ref} data-slot="button" isDisabled={disabled} className={cn(buttonVariants({ variant, size }), className)} {...props} />
+  return (
+    <AriaButton
+      ref={ref}
+      data-slot="button"
+      isDisabled={disabled}
+      className={cn(buttonVariants({ variant, size }), className)}
+      {...props}
+    />
+  )
 })
 
 export { Button, buttonVariants }

@@ -24,17 +24,46 @@ app.setAppUserModelId("local.tradingjournal.desktop")
 
 function registerHandlers() {
   ipcMain.handle("journal:load", () => store.bootstrap())
-  ipcMain.handle("journal:save-account-tracker", (_event, id, input) => { const result = store.saveAccountTracker(id, input); codexInbox.refreshContext(); return result })
-  ipcMain.handle("journal:pass-account", (_event, id, balance) => { const result = store.passAccount(id, balance); codexInbox.refreshContext(); return result })
-  ipcMain.handle("journal:adjust-account", (_event, id, amount, reason) => store.adjustAccount(id, amount, reason))
+  ipcMain.handle("journal:save-account-tracker", (_event, id, input) => {
+    const result = store.saveAccountTracker(id, input)
+    codexInbox.refreshContext()
+    return result
+  })
+  ipcMain.handle("journal:pass-account", (_event, id, balance) => {
+    const result = store.passAccount(id, balance)
+    codexInbox.refreshContext()
+    return result
+  })
+  ipcMain.handle("journal:adjust-account", (_event, id, amount, reason) =>
+    store.adjustAccount(id, amount, reason),
+  )
   ipcMain.handle("journal:save-trade", (_event, input) => store.saveTrade(input))
   ipcMain.handle("journal:duplicate-trade", (_event, id) => store.duplicateTrade(id))
   ipcMain.handle("journal:delete-trade", (_event, id) => store.deleteTrade(id))
-  ipcMain.handle("journal:add-metadata", (_event, type, name) => { const result = store.addMetadata(type, name); codexInbox.refreshContext(); return result })
-  ipcMain.handle("journal:delete-metadata", (_event, type, id) => { store.deleteMetadata(type, id); codexInbox.refreshContext() })
-  ipcMain.handle("journal:add-account", (_event, name, color) => { const result = store.addAccount(name, color); codexInbox.refreshContext(); return result })
-  ipcMain.handle("journal:update-account", (_event, id, changes) => { const result = store.updateAccount(id, changes); codexInbox.refreshContext(); return result })
-  ipcMain.handle("journal:save-profile", (_event, profile) => { const result = store.saveProfile(profile); codexInbox.refreshContext(); return result })
+  ipcMain.handle("journal:add-metadata", (_event, type, name) => {
+    const result = store.addMetadata(type, name)
+    codexInbox.refreshContext()
+    return result
+  })
+  ipcMain.handle("journal:delete-metadata", (_event, type, id) => {
+    store.deleteMetadata(type, id)
+    codexInbox.refreshContext()
+  })
+  ipcMain.handle("journal:add-account", (_event, name, color) => {
+    const result = store.addAccount(name, color)
+    codexInbox.refreshContext()
+    return result
+  })
+  ipcMain.handle("journal:update-account", (_event, id, changes) => {
+    const result = store.updateAccount(id, changes)
+    codexInbox.refreshContext()
+    return result
+  })
+  ipcMain.handle("journal:save-profile", (_event, profile) => {
+    const result = store.saveProfile(profile)
+    codexInbox.refreshContext()
+    return result
+  })
   ipcMain.handle("journal:data-location", () => databasePath)
   ipcMain.handle("window:set-chrome", (_event, theme) => {
     const chrome = chromeThemes[theme] || chromeThemes.midnight
@@ -45,7 +74,11 @@ function registerHandlers() {
   ipcMain.handle("codex:disable", () => codexInbox.disable())
   ipcMain.handle("codex:open-inbox", () => shell.openPath(codexInbox.inboxPath))
   ipcMain.handle("codex:delete-draft", (_event, id) => store.deleteDraft(id))
-  ipcMain.handle("codex:complete-draft", (_event, input) => { const result = store.completeDraft(input); codexInbox.refreshContext(); return result })
+  ipcMain.handle("codex:complete-draft", (_event, input) => {
+    const result = store.completeDraft(input)
+    codexInbox.refreshContext()
+    return result
+  })
   ipcMain.handle("codex:undo-import", (_event, importId) => store.undoImport(importId))
 
   ipcMain.handle("journal:backup", async () => {
@@ -119,7 +152,10 @@ app.whenReady().then(async () => {
   codexInbox = createCodexInbox({
     // Windows can redirect the Documents shell folder into OneDrive. Keep the
     // Codex inbox on the physical local disk instead.
-    documentsPath: path.join(app.getPath("home"), "Documents"), codexHome, skillSourcePath, store,
+    documentsPath: path.join(app.getPath("home"), "Documents"),
+    codexHome,
+    skillSourcePath,
+    store,
     onReceipt: (receipt) => mainWindow?.webContents.send("codex:imported", receipt),
   })
   registerHandlers()
@@ -135,4 +171,7 @@ app.on("window-all-closed", () => {
   if (process.platform !== "darwin") app.quit()
 })
 
-app.on("before-quit", () => { codexInbox?.stop(); store?.close() })
+app.on("before-quit", () => {
+  codexInbox?.stop()
+  store?.close()
+})

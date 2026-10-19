@@ -37,4 +37,3 @@ Anonymized examples:
 6. Read the matching receipt when it appears. Report exactly one of: saved trade, saved draft, duplicate, or rejected. If the app is closed and no receipt exists yet, say the entry is queued for the next app launch.
 
 Do not write to the SQLite database, edit processed packages, or claim success without a receipt.
-

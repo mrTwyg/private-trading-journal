@@ -6,4 +6,3 @@ interface:
 
 policy:
   allow_implicit_invocation: true
-
