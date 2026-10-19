@@ -38,6 +38,12 @@ export function formatR(value: number) {
   return `${prefix}${value.toFixed(2)}R`
 }
 
+export function formatTradePnl(trades: Trade[], defaultCurrency: string) {
+  const totals = new Map<string, number>()
+  for (const trade of trades) totals.set(trade.currency, (totals.get(trade.currency) ?? 0) + trade.pnlAmount)
+  return totals.size ? [...totals].map(([currency, amount]) => formatMoney(amount, currency)).join(" / ") : formatMoney(0, defaultCurrency)
+}
+
 export function defaultTradeDateTime(iso?: string, selectedDay?: Date | null) {
   const now = new Date()
   const date = iso ? parseISO(iso) : selectedDay ? new Date(selectedDay) : now

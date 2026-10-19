@@ -4,6 +4,9 @@ const { contextBridge, ipcRenderer } = require("electron")
 
 contextBridge.exposeInMainWorld("journalApi", {
   load: () => ipcRenderer.invoke("journal:load"),
+  saveAccountTracker: (id, input) => ipcRenderer.invoke("journal:save-account-tracker", id, input),
+  passAccount: (id, balance) => ipcRenderer.invoke("journal:pass-account", id, balance),
+  adjustAccount: (id, amount, reason) => ipcRenderer.invoke("journal:adjust-account", id, amount, reason),
   saveTrade: (input) => ipcRenderer.invoke("journal:save-trade", input),
   duplicateTrade: (id) => ipcRenderer.invoke("journal:duplicate-trade", id),
   deleteTrade: (id) => ipcRenderer.invoke("journal:delete-trade", id),

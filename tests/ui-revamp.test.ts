@@ -43,7 +43,7 @@ describe("UI revamp architecture", () => {
 
   it("supports separate account calendars and defaults new trades to the selected account", () => {
     const app = read("app/journal-app.tsx")
-    expect(app).toContain('selectedAccountId !== "all" ? selectedAccountId')
+    expect(app).toContain('selectedAccountId === "all" || account.id === selectedAccountId')
     expect(app).toContain('<Field label="Account"')
     expect(app).toContain('trades.filter((trade) => trade.accountId === selectedAccountId)')
   })
