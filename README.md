@@ -1,311 +1,78 @@
 # Trading Journal
 
-A private trading journal that runs entirely on your Windows computer.
+A private, offline trading journal for Windows. Record trades, review your calendar, and track prop-firm accounts without connecting a broker or paying a subscription.
 
-It does not need an online account, a broker connection, Supabase, or a monthly subscription. Your trades, notes, settings, tags, and screenshots are kept in one local SQLite database on your computer.
+Your trades, notes, settings, and screenshots stay on your computer. No online account or database setup is required.
 
-## The short version
+**[Download the latest Windows release](https://github.com/mrTwyg/private-trading-journal/releases/latest)** · [User guide](docs/user-guide.md) · [Developer guide](docs/development.md)
 
-If someone sent you this app:
+## Install and start
 
-1. Download **Trading-Journal-Setup-1.3.0-x64.exe**.
-2. Open it and follow the installation steps.
-3. Start **Trading Journal** from the desktop shortcut or Start menu.
-4. Open **Settings** and change the display name, currency, and timezone.
-5. Use **Log trade** to add your first trade.
-6. Use **Settings → Back up journal** regularly.
+1. Open the **latest Windows release** linked above.
+2. Under **Assets**, download `Trading-Journal-Setup-<version>-x64.exe`. The version number changes with each release.
+3. Open the installer and follow the steps.
+4. Start **Trading Journal** from your desktop or Start menu.
+5. Open **Settings** to choose your name, currency, and timezone.
 
-Each person installs their own copy. The two copies are completely separate: neither person can see or change the other person's journal.
+You are ready to log your first trade.
 
-## Pinning it to the Windows taskbar
+**Prefer no installer?** Choose `Trading-Journal-Portable-<version>-x64.exe` instead. It still saves your journal in Windows app-data, not beside the executable.
 
-After installing the app:
+**Windows warning?** Unsigned builds may trigger SmartScreen. Only continue if you trust the source; the filename alone does not prove a download is safe. [Installation and taskbar help →](docs/user-guide.md#installation-and-taskbar)
 
-1. Open **Trading Journal**.
-2. Find its icon on the taskbar.
-3. Right-click the icon.
-4. Select **Pin to taskbar**.
+## Everyday use
 
-You can also open the Start menu, search for **Trading Journal**, right-click it, and choose **Pin to taskbar**. Windows requires you to make this choice yourself; the installer does not silently change your pinned apps.
+| Where             | What you can do                                                           |
+| ----------------- | ------------------------------------------------------------------------- |
+| **Calendar**      | Review daily P&L and trade counts in week or month view.                  |
+| **Log trade**     | Enter a trade and save it to one or several accounts.                     |
+| **Trades**        | Search entries, review notes and charts, edit, or copy to other accounts. |
+| **Accounts**      | Track purchases, balances, and evaluation/live status.                    |
+| **Setups & tags** | Manage reusable setups, tags, and firm choices.                           |
+| **Inbox**         | Review incomplete entries from the optional Codex helper.                 |
+| **Settings**      | Change preferences, back up your journal, or restore a backup.            |
 
-## Which file should I use?
+### Took the same trade on several accounts?
 
-A packaged release normally contains two Windows programs:
+- **Same risk and result:** click **Log trade**, tick the accounts, and choose **Save to N accounts**.
+- **Different amounts:** open a trade, choose **Copy to accounts**, then change the risk/result and select the destinations.
 
-- **Trading-Journal-Setup-1.3.0-x64.exe:** use this for the normal setup experience, desktop shortcut, and Start menu entry.
-- **Trading-Journal-Portable-1.3.0-x64.exe:** use this if you want to open the app without installing it. Your journal is still stored in your Windows app-data folder—not inside the portable program itself.
+Each saved copy is independent. Opening or cancelling the copy form does not save anything. [Trade-entry instructions →](docs/user-guide.md#log-and-copy-trades)
 
-The installer and portable program use the same journal data when they are run under the same Windows account.
+## Protect your history
 
-## Windows may show a warning
+**Make a backup before updating, restoring, or changing computers.**
 
-This is a privately built app and is not digitally signed. Windows SmartScreen may show **Windows protected your PC**.
+1. Open **Settings → Back up journal**.
+2. Save the `.sqlite` backup somewhere private, outside the project folder.
+3. Keep another copy on a separate drive or trusted private backup service.
 
-Only continue if you received the file directly from someone you trust and the filename is the one you expected. Select **More info**, check the publisher information, and then select **Run anyway**.
+The backup includes trades, notes, settings, tags, and screenshots. There is no automatic cloud recovery. A backup on the same disk will not protect against disk failure.
 
-Do not bypass the warning for a copy downloaded from an unknown website or sent by an unknown person.
+**Restore backup replaces the current journal.** Back up the current one first. [Backup and recovery instructions →](docs/user-guide.md#backups-and-recovery)
 
-## What the app can do
+## Update the installed app
 
-- Show trades in separate week and month calendars.
-- Show daily, weekly, and monthly profit or loss.
-- Record the instrument, direction, setup, risk, outcome, result, and R-multiple.
-- Choose the instrument from NQ, ES, MNQ, or MES.
-- Keep full-loss entries consistent: selecting Loss automatically makes the amount lost equal the risk amount.
-- Store formatted thought-process notes.
-- Attach one JPEG, PNG, or WebP screenshot up to 10 MB to a trade.
-- Paste a chart screenshot directly into the trade form with **Ctrl+V** instead of browsing for a file.
-- Create reusable setups and tags.
-- Search trades and filter them by outcome.
-- Edit, duplicate, and delete trades.
-- Back up and restore the entire journal.
-- Accept dictated and screenshot-supported trade entries from Codex through an optional local helper.
-- Customise the interface with four themes, five accent choices, comfortable or compact density, three corner styles, clean or technical type, motion preferences, and glow intensity.
-- Use accessible, keyboard-friendly dropdowns plus separate calendar and 24-hour time controls.
-- Use the compact collapsible navigation and integrated Windows title bar without losing native snap, minimise, maximise, or close behaviour.
+1. Make a fresh backup and close every Trading Journal window.
+2. Download the newer **Setup** file from the releases page.
+3. Run it over the existing installation.
+4. Open the app and check several saved trades and screenshots.
 
-## Tracking prop-firm accounts
+Your journal is stored separately from the application. Do not delete its data folder or use an older app to open an upgraded database.
 
-Open **Accounts** to record each purchased account separately. Group by firm and switch between Active, History, Not tracked, and All accounts. Track the initial purchase price, purchase date, discount code, account size, and balance in USD. The purchase price is the final amount paid after any discount.
+Running from source? Follow [update a local source build](docs/development.md#update-a-local-source-build). You do not need an installer after every source change.
 
-Click **Add account** to open the full form, including the name and firm. Money inputs show a `$` prefix; all account-tracking amounts remain USD. Manage the reusable firm dropdown in **Setups & tags → Prop firms**. Removing a firm choice does not change accounts or their history.
+## Share the app, not your journal
 
-To permanently remove an account, choose **Delete account** in Accounts, or **Delete** beside its name in Setups & tags. You must type its exact name to confirm. This deletes that account's trades, screenshots, tracking details and adjustments, and cannot be undone. A linked evaluation or live account keeps its own history. Drafts keep their content but require a new account assignment. Use Archive instead if you want to keep the history.
+Send your friend the **release link or installer**. They install it on their own computer and get a separate, empty journal.
 
-Before the account-management upgrade, the app saves an untouched database copy beside the original as `trading-journal.sqlite.before-account-management-v6.bak`. This is a recovery copy, not an undo button for later deletions. Make a fresh backup in Settings before deleting anything you might want to recover.
+Do not send your `.sqlite` backup unless you intend to share its contents. Trading accounts inside the app are journal categories, not separate user logins.
 
-Existing accounts are left untracked after updating. Choose **Not tracked → Enable tracking**, enter the current opening balance, and choose a date and time after the trades already included in that balance. Your older trades, screenshots, currencies, settings, and calendar assignments stay saved. New trades on tracked accounts use USD; historical currencies are never converted. The calendar shows separate currency totals when needed.
+## More help
 
-Balances are opening balance plus USD trade results from the chosen start time, plus adjustments. Editing, deleting, duplicating, or moving trades recalculates balances. Use **Payout / adjustment** for withdrawals (negative) or credits (positive); adjustments do not change trade P&L. Record a corrective adjustment if a previous adjustment was wrong.
-
-Choose **Move to Live** on an evaluation and confirm the fresh starting balance. The evaluation becomes **Passed** with its history and purchase cost intact. A linked account named **Original name — Live** starts with no trades and zero additional purchase cost. Passed, Blown, and Closed accounts appear in History. Blown and Closed can be corrected using Edit tracking. New trades cannot be added to historical accounts.
-
-The trade form offers **This trade blew the account**, followed by confirmation. This status changes only if the trade saves successfully. Deleting that trade recalculates the balance but does not automatically reopen the account; correct the status separately if necessary.
-
-Before the first upgrade to account tracking, the app saves an untouched copy beside the database named `trading-journal.sqlite.before-account-tracker-v5.bak`. Keep it and make regular backups through Settings. Older app versions should not be used to open an upgraded journal. If you use the Codex helper, reinstall it in Settings after updating so it can include account IDs; ambiguous account imports will wait for review.
-
-### Logging a copied trade across accounts
-
-In **Log trade**, tick every account that took the same trade with the same risk and monetary result, then choose **Save to N accounts**. Each account gets its own independent entry and screenshot. If any destination fails validation or the file cannot be saved, the whole batch is rejected; it does not leave half the accounts updated.
-
-For different amounts, open an existing trade and choose **Copy to accounts**. The form prefills its date/time, instrument, setup, tags, notes and screenshot. Select the destination accounts, change risk and result, then save. Opening or cancelling this form does not create trades, and saving never edits the original. Editing an existing trade still changes only that one entry.
-
-Only active accounts can receive new copies. One batch must use a single currency; there is no currency conversion. The **This trade blew the account** option is available only when saving to one account, so a multi-account save cannot accidentally mark all accounts blown through the form.
-
-### Protecting saved history
-
-Updates must not reset the journal. Before updating, keep a fresh backup through **Settings**, and retain older copies. Test builds use a separate copy of the journal and a separate Codex inbox: entries made in a preview do **not** sync to your normal journal. Never use a preview as your ongoing journal unless it is explicitly promoted after review.
-
-A backup on this computer helps recover from a bad change, but not disk failure or losing the computer. Keep an additional copy on a separate device or a private backup location you control.
-
-## Changing the journal appearance
-
-Open **Settings → Appearance**. Theme changes preview immediately; select **Save appearance** to keep them after closing the app.
-
-The four visual systems are:
-
-- **Midnight:** the original cyan glass and deep navy design.
-- **Obsidian:** black and graphite with signal-green details.
-- **Violet Horizon:** indigo surfaces with ultraviolet accents.
-- **Light Alloy:** a bright technical workspace for daylight use.
-
-Success, loss, and breakeven states continue to use text and icons as well as colour. Reduced Motion can follow Windows or be forced on inside the journal.
-
-## Logging trades with Codex
-
-This is optional and is intended for the computer where you use Codex.
-
-1. Open **Settings** in Trading Journal.
-2. Under **Codex helper**, select **Enable Codex helper** and confirm.
-3. Restart Codex once so it can discover the new local skill.
-4. In Codex, say something like: **“Log this trade. MNQ long today, risked £250, won £500. London low sweep, bullish SMT, then a one-minute inverse FVG.”**
-5. Attach or name a local JPEG, PNG, or WebP chart screenshot if you want it stored with the trade.
-
-Complete entries are added automatically. If a required fact is missing or uncertain, the entry appears under **Inbox** as a draft. Drafts never affect the calendar, trade count, P&L, win rate, or R totals.
-
-Codex is allowed to tidy setup wording, notes, and tags. It is not allowed to guess the date, symbol, direction, risk, outcome, or monetary result. Check imported trades just as you would check a manually entered trade.
-
-The helper does not write directly to the SQLite database. It places a versioned file in:
-
-```text
-C:\Users\YOUR-NAME\Documents\Codex\Trading Journal Inbox
-```
-
-Trading Journal validates that file and remains the only program that writes journal records. If the journal is closed, the entry waits in the inbox and is processed the next time the app opens.
-
-Use **Settings → Open inbox folder** to inspect the local files. **Disable helper** removes the installed Codex skill but does not delete journal data or existing inbox files.
-
-## Where is my journal stored?
-
-The app shows the exact location at the bottom of **Settings**. On a normal Windows installation it will be similar to:
-
-```text
-C:\Users\YOUR-NAME\AppData\Roaming\Trading Journal\trading-journal.sqlite
-```
-
-That SQLite file contains the complete journal, including screenshots. The application saves changes immediately.
-
-Do not edit, rename, move, or replace this live file while Trading Journal is open.
-
-## Backing up your journal
-
-A backup is important because the app deliberately has no cloud copy.
-
-1. Open **Settings**.
-2. Select **Back up journal**.
-3. Choose a safe location and select **Save**.
-4. Copy the resulting `.sqlite` file to another drive, an encrypted cloud folder, or other trusted storage.
-
-A useful routine is to make a backup once a week and before updating, reinstalling, or changing computers.
-
-The backup contains everything: trades, notes, settings, setups, tags, and screenshots. Treat it as private information.
-
-## Restoring a backup
-
-Restoring replaces the journal currently open in the app.
-
-1. Back up the current journal first if it contains anything you may want later.
-2. Open **Settings**.
-3. Select **Restore backup**.
-4. Choose a Trading Journal `.sqlite` backup.
-5. Confirm that your trades and settings appear correctly.
-
-The app checks that the selected file is a valid Trading Journal database before replacing the current journal.
-
-## Moving to another computer
-
-1. On the old computer, create a backup from **Settings**.
-2. Copy the `.sqlite` backup to the new computer using a trusted method.
-3. Install Trading Journal on the new computer.
-4. Open **Settings → Restore backup** and choose the copied file.
-5. Check several trades and screenshots before deleting anything from the old computer.
-
-## Privacy and security: important limitations
-
-- The journal and its inbox work offline and do not intentionally send your data anywhere. If you choose to dictate or attach an image to Codex, that content is processed according to your Codex account and app settings before the resulting entry is handed to the offline journal.
-- There is no app password. Anyone who can use your unlocked Windows account may be able to open the journal.
-- The SQLite database and backups are **not encrypted by this app**.
-- Use a strong Windows password and enable device encryption or BitLocker if the journal is sensitive.
-- Keep backups somewhere private. A backup has the same sensitive information as the live journal.
-- There is no automatic synchronization or cloud recovery.
-
-This is a personal journaling tool, not brokerage software. It does not place trades, calculate tax, verify broker statements, or provide financial advice.
-
-## If two people want to use it
-
-Install one copy on each person's computer. Each installation creates its own database automatically.
-
-You do not need to create accounts or share a database. Sending the installer gives the other person the app, not access to your journal. Never send your `.sqlite` backup unless you intentionally want to give someone all of that journal's contents.
-
-## Everyday troubleshooting
-
-### The app opens with an empty journal
-
-You may be using a different Windows account or computer, or the app may be looking at a new data folder. Open **Settings** and compare the displayed storage location with the one you used previously. If you have a backup, restore it.
-
-### A screenshot will not attach
-
-Use a JPEG, PNG, or WebP image no larger than 10 MB. Very large screenshots can be resized with the Windows Photos app before attaching them.
-
-### The app will not start
-
-Restart Windows and try again. If that does not help, reinstall the app. Reinstalling should not be treated as a backup: protect the `.sqlite` file first whenever possible.
-
-### I restored the wrong backup
-
-Restoring replaces the current journal. Restore a newer backup if you have one. The app does not keep automatic backup history.
-
-### I deleted a trade by mistake
-
-Trade deletion cannot be undone inside the app. You can restore an earlier backup, but doing so also returns the rest of the journal to the state it had when that backup was made.
-
-## Updating the app
-
-1. Create a fresh backup.
-2. Close Trading Journal.
-3. Install the newer version over the existing version.
-4. Open the app and confirm that several trades and screenshots are present.
-
-Do not delete the old installer or your latest backup until the updated app has been checked.
-
-## For technical users and maintainers
-
-The desktop app uses Electron, a statically exported Next.js interface, and SQLite through `sql.js`. The Electron renderer is isolated from Node.js; database operations are exposed through a narrow preload bridge.
-
-Requirements for building from source:
-
-- Windows 10 or newer
-- Node.js 22 or newer
-- npm
-
-From the project folder:
-
-```powershell
-npm install
-npm test
-npm run package:windows
-```
-
-Finished Windows packages are written to `release/`.
-
-### Automatic GitHub releases
-
-Every push to `main` checks the version in `package.json`. If a matching tag does not exist, GitHub Actions tests the merged code, builds both Windows editions, creates the `v<version>` tag, and publishes a GitHub Release with the installer and portable executable attached.
-
-For the next release, update the version in both `package.json` and `package-lock.json` on the feature branch. Once that pull request is merged, the release is created automatically. If the version was not changed, the workflow exits without replacing the existing release.
-
-Useful development commands:
-
-```powershell
-npm run format
-npm run format:check
-npm run dev
-npm run build
-npm run desktop
-npm run lint
-npm test
-```
-
-`npm run dev` shows only the browser interface. It cannot open the private SQLite database because database access is deliberately limited to the desktop application. To test the real local-storage flow, run `npm run build` followed by `npm run desktop`.
-
-### Updating and running your existing local journal
-
-First use **Settings → Back up journal**, save the backup outside this project folder, and close every Trading Journal window. From a clean checkout on `main`, run:
-
-```powershell
-git pull --ff-only
-npm ci
-npm run build
-npm run desktop
-```
-
-Run these commands under the same Windows account as before. The desktop app opens the existing journal in your Windows app-data folder; it does not store trades in this source checkout. Do not delete or replace that data folder. After launch, check the storage path in Settings and a few saved trades and screenshots. The browser-only development server does not have desktop database access.
-
-After a source change, close the desktop app, run `npm run build` again, then `npm run desktop`. No installer is needed. Formatting and source-file moves do not migrate or edit journal data.
-
-### Finding your way around the source
-
-- `app/journal-app.tsx`: desktop connection, loading and error states.
-- `components/journal/journal-workspace.tsx`: shared journal state and screen wiring.
-- `components/journal/`: individual calendar, trades, form, settings, inbox and organisation screens, plus the shell and trade sheets.
-- `components/accounts-view.tsx`: prop-firm purchases, balances and evaluation-to-live transitions.
-- `components/ui/`: shared accessible controls such as buttons, dropdowns, dialogs, and date/time fields.
-- `lib/`: shared types, trade calculations, and formatting helpers.
-- `electron/main.cjs` and `electron/preload.cjs`: desktop startup and the renderer-to-desktop bridge.
-- `electron/database.cjs`: SQLite persistence and schema migrations. Treat changes here as data changes and test against a backup.
-- `codex-skill/`: the bundled optional Codex logging helper.
-- `tests/`: regression tests; `.github/workflows/quality.yml` runs formatting, tests, lint, and build for pull requests.
-
-Use `npm run format` before committing to apply the shared Prettier style. `npm run format:check` checks without editing files. The style uses two spaces, double quotes, no semicolons, and a 100-character preferred line width. Editors with Prettier support can use `.prettierrc.json`; `.editorconfig` also sets basic indentation and line endings. Generated files, packaged releases, third-party vendor code, and local journal data are excluded from formatting.
-
-Before distributing a release:
-
-1. Run the tests and production build.
-2. Install the generated installer on a clean Windows user account or test machine.
-3. Create, edit, duplicate, and delete a trade.
-4. Attach and replace a screenshot.
-5. Create a backup, add another trade, and restore the backup.
-6. Confirm the app works with networking disabled.
-7. Scan the installer with the normal security tools used by the recipients.
-
-For wider public distribution, digitally sign the Windows installer. An unsigned private build will commonly trigger SmartScreen warnings.
+- [Account balances, purchases, and moving to Live](docs/user-guide.md#track-prop-firm-accounts)
+- [Log trades through the optional Codex helper](docs/user-guide.md#optional-codex-helper)
+- [Themes and appearance](docs/user-guide.md#appearance)
+- [Find your data or fix a problem](docs/user-guide.md#troubleshooting)
+- [Privacy and security limitations](docs/user-guide.md#privacy-and-security)
+- [Run, test, and package the app from source](docs/development.md)
