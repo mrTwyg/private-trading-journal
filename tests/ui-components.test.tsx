@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react"
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react"
 import "@testing-library/jest-dom/vitest"
 import { I18nProvider } from "react-aria-components/I18nProvider"
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest"
@@ -278,11 +278,11 @@ describe("multi-account trade form", () => {
     expect(screen.getByRole("checkbox", { name: "Second (USD)" })).toBeChecked()
     expect(screen.getByRole("checkbox", { name: "First (USD)" })).not.toBeChecked()
     expect(screen.queryByText("Archived (USD)")).not.toBeInTheDocument()
-    fireEvent.click(screen.getByRole("checkbox", { name: "First (USD)" }))
     fireEvent.click(screen.getByRole("button", { name: /Instrument/ }))
     fireEvent.click(screen.getByRole("option", { name: "MNQ" }))
     fireEvent.change(screen.getByLabelText("Risked (USD)"), { target: { value: "100" } })
     fireEvent.change(screen.getByLabelText("Amount won"), { target: { value: "250" } })
+    fireEvent.click(screen.getByRole("checkbox", { name: "First (USD)" }))
     fireEvent.click(screen.getByRole("button", { name: "Save to 2 accounts" }))
     await waitFor(() =>
       expect(onSave).toHaveBeenCalledWith(
@@ -294,6 +294,33 @@ describe("multi-account trade form", () => {
         }),
       ),
     )
+  })
+
+  it("saves different account amounts and outcomes together and keeps them when removing an account", async () => {
+    const { onSave } = renderTradeForm({ copyTrade: sourceTrade })
+    fireEvent.click(screen.getByRole("checkbox", { name: "Second (USD)" }))
+    fireEvent.click(screen.getByRole("checkbox", { name: "First (USD)" }))
+    const first = within(screen.getByRole("group", { name: "First (USD)" }))
+    fireEvent.click(first.getByRole("button", { name: "loss" }))
+    fireEvent.change(first.getByLabelText("Risked (USD)"), { target: { value: "75" } })
+    expect(first.getByLabelText("Amount lost (same as risk)")).toHaveValue(75)
+    expect(
+      within(screen.getByRole("group", { name: "Second (USD)" })).getByLabelText("Amount won"),
+    ).toHaveValue(250)
+    fireEvent.click(screen.getByRole("button", { name: "Save to 2 accounts" }))
+    await waitFor(() =>
+      expect(onSave).toHaveBeenCalledWith(
+        expect.objectContaining({
+          accountResults: {
+            two: { riskAmount: 100, outcome: "win", resultAmount: 250 },
+            one: { riskAmount: 75, outcome: "loss", resultAmount: 75 },
+          },
+        }),
+      ),
+    )
+    fireEvent.click(screen.getByRole("checkbox", { name: "Second (USD)" }))
+    expect(screen.getByLabelText("Risked (USD)")).toHaveValue(75)
+    expect(screen.getByLabelText("Amount lost (same as risk)")).toHaveValue(75)
   })
 
   it("prefills copies without saving and lets risk/result change before saving", async () => {

@@ -186,7 +186,13 @@ export function JournalWorkspace({
     setFormOpen(true)
   }
 
-  const saveTrade = async ({ draft, image, removeImage, accountIds }: TradeFormSaveInput) => {
+  const saveTrade = async ({
+    draft,
+    image,
+    removeImage,
+    accountIds,
+    accountResults,
+  }: TradeFormSaveInput) => {
     const pnl = signedPnl({ outcome: draft.outcome, resultAmount: draft.resultAmount })
     const payload = {
       accountId: draft.accountId,
@@ -219,7 +225,23 @@ export function JournalWorkspace({
       ? [await api.completeDraft({ ...input, id: undefined, draftId: editingDraft.id })]
       : editingTrade
         ? [await api.saveTrade(input)]
-        : await api.saveTrades({ ...input, accountIds, copyFromTradeId: copyingTrade?.id })
+        : await api.saveTrades({
+            ...input,
+            accountIds,
+            copyFromTradeId: copyingTrade?.id,
+            accountResults:
+              accountResults &&
+              Object.fromEntries(
+                Object.entries(accountResults).map(([id, result]) => [
+                  id,
+                  {
+                    riskAmount: result.riskAmount,
+                    outcome: result.outcome,
+                    pnlAmount: signedPnl(result),
+                  },
+                ]),
+              ),
+          })
     setTrades((items) =>
       editingTrade
         ? items.map((item) => (item.id === storedTrades[0].id ? storedTrades[0] : item))

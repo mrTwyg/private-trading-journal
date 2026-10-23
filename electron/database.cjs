@@ -416,6 +416,17 @@ async function createJournalStore(databasePath) {
     )
       throw new Error("Choose at least one active account.")
     const accountIds = [...new Set(input.accountIds)]
+    if (
+      input.accountResults !== undefined &&
+      (!input.accountResults ||
+        typeof input.accountResults !== "object" ||
+        Array.isArray(input.accountResults) ||
+        Object.keys(input.accountResults).length !== accountIds.length ||
+        accountIds.some(
+          (id) => !Object.hasOwn(input.accountResults, id) || !input.accountResults[id],
+        ))
+    )
+      throw new Error("Provide a result for every selected account.")
     const source = input.copyFromTradeId ? getTrade(input.copyFromTradeId) : null
     if (input.copyFromTradeId && !source) throw new Error("Trade not found.")
     const profile = one(db, "SELECT default_currency FROM profile LIMIT 1")
@@ -449,7 +460,17 @@ async function createJournalStore(databasePath) {
       trades = accountIds.map((accountId) =>
         saveTrade(
           {
-            payload: { ...input.payload, accountId },
+            payload: {
+              ...input.payload,
+              ...(input.accountResults
+                ? {
+                    riskAmount: input.accountResults[accountId].riskAmount,
+                    outcome: input.accountResults[accountId].outcome,
+                    pnlAmount: input.accountResults[accountId].pnlAmount,
+                  }
+                : {}),
+              accountId,
+            },
             image,
           },
           { inBatch: true },

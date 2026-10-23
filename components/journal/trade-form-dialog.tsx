@@ -124,6 +124,9 @@ export function TradeFormDialog({
   const [accountIds, setAccountIds] = useState<string[]>(() =>
     copyTrade ? [] : [emptyDraft().accountId].filter(Boolean),
   )
+  const [accountResults, setAccountResults] = useState<
+    NonNullable<TradeFormSaveInput["accountResults"]>
+  >({})
   const [image, setImage] = useState<File | null>(null)
   const [imagePreview, setImagePreview] = useState<string | null>(
     source?.image?.url ?? importDraft?.image?.url ?? null,
@@ -137,6 +140,7 @@ export function TradeFormDialog({
       // Reset the complete editor state whenever a different trade dialog opens.
       // eslint-disable-next-line react-hooks/set-state-in-effect
       setDraft(emptyDraft())
+      setAccountResults({})
       setAccountIds(copyTrade ? [] : [emptyDraft().accountId].filter(Boolean))
       setImage(null)
       setImagePreview(source?.image?.url ?? importDraft?.image?.url ?? null)
@@ -183,6 +187,38 @@ export function TradeFormDialog({
       return setError("Risk must be greater than zero.")
     if (draft.outcome !== "breakeven" && draft.resultAmount <= 0)
       return setError("Enter how much the trade won or lost.")
+    const results =
+      multiAccount && accountIds.length > 1
+        ? Object.fromEntries(
+            accountIds.map((id) => {
+              const values = id === draft.accountId ? draft : (accountResults[id] ?? draft)
+              return [
+                id,
+                {
+                  riskAmount: values.riskAmount,
+                  outcome: values.outcome,
+                  resultAmount:
+                    values.outcome === "loss"
+                      ? values.riskAmount
+                      : values.outcome === "breakeven"
+                        ? 0
+                        : values.resultAmount,
+                },
+              ]
+            }),
+          )
+        : undefined
+    if (
+      results &&
+      Object.values(results).some(
+        (r) =>
+          !Number.isFinite(r.riskAmount) ||
+          r.riskAmount <= 0 ||
+          !Number.isFinite(r.resultAmount) ||
+          (r.outcome !== "breakeven" && r.resultAmount <= 0),
+      )
+    )
+      return setError("Enter a valid risk and result for every selected account.")
     if (
       draft.markAccountBlown &&
       !window.confirm(
@@ -206,6 +242,7 @@ export function TradeFormDialog({
         },
         image,
         removeImage,
+        ...(results ? { accountResults: results } : {}),
         accountIds: multiAccount ? accountIds : [draft.accountId],
       })
       onOpenChange(false)
@@ -257,9 +294,8 @@ export function TradeFormDialog({
                 <fieldset className="space-y-2 sm:col-span-2" disabled={saving}>
                   <legend className="mb-2 text-sm font-medium">Accounts</legend>
                   <p className="text-sm text-muted-foreground">
-                    Select every account that took this trade with the same risk and result. Each
-                    receives a separate trade. For different amounts, use Copy to accounts
-                    afterward.
+                    Select the accounts that took this trade, then adjust each account�s risk and
+                    result below.
                   </p>
                   <div className="flex max-h-40 flex-wrap gap-2 overflow-y-auto">
                     {availableAccounts.map((account) => (
@@ -270,9 +306,16 @@ export function TradeFormDialog({
                             const next = checked
                               ? [...accountIds, account.id]
                               : accountIds.filter((id) => id !== account.id)
+                            if (!checked)
+                              setAccountResults((current) => {
+                                const remaining = { ...current }
+                                delete remaining[account.id]
+                                return remaining
+                              })
                             setAccountIds(next)
                             setDraft({
                               ...draft,
+                              ...(next[0] !== draft.accountId ? accountResults[next[0]] : {}),
                               accountId: next[0] ?? "",
                               markAccountBlown: false,
                             })
@@ -410,107 +453,136 @@ export function TradeFormDialog({
               />
             </Field>
 
-            <fieldset>
-              <legend className="mb-2 text-sm font-medium">Outcome</legend>
-              <div className="grid grid-cols-3 gap-2">
-                {(["win", "loss", "breakeven"] as TradeOutcome[]).map((outcome) => (
-                  <button
-                    key={outcome}
-                    type="button"
-                    aria-pressed={draft.outcome === outcome}
-                    onClick={() =>
-                      setDraft({
-                        ...draft,
-                        outcome,
-                        resultAmount:
-                          outcome === "loss"
-                            ? draft.riskAmount
-                            : outcome === "breakeven"
-                              ? 0
-                              : draft.resultAmount,
-                      })
-                    }
-                    className={cn(
-                      "outcome-choice",
-                      draft.outcome === outcome && outcomeStyle[outcome],
-                    )}
-                  >
-                    <OutcomeIcon outcome={outcome} />
-                    <span className="capitalize">{outcome}</span>
-                    {draft.outcome === outcome && <Check className="ml-auto size-4" />}
-                  </button>
-                ))}
-              </div>
-            </fieldset>
-
-            <div className="grid gap-4 sm:grid-cols-2">
-              <Field
-                label={`Risked (${source?.currency ?? (trackers.some((t) => t.accountId === draft.accountId) ? "USD" : profile.defaultCurrency)})`}
-                htmlFor="riskAmount"
-              >
-                <Input
-                  id="riskAmount"
-                  type="number"
-                  min="0.01"
-                  step="0.01"
-                  inputMode="decimal"
-                  value={draft.riskAmount || ""}
-                  onChange={(event) => {
-                    const riskAmount = Number(event.target.value)
-                    setDraft({
-                      ...draft,
-                      riskAmount,
-                      resultAmount: draft.outcome === "loss" ? riskAmount : draft.resultAmount,
-                    })
-                  }}
-                  required
-                />
-              </Field>
-              <Field
-                label={
-                  draft.outcome === "win"
-                    ? "Amount won"
-                    : draft.outcome === "loss"
-                      ? "Amount lost (same as risk)"
-                      : "Result"
+            {(multiAccount && accountIds.length > 1 ? accountIds : [draft.accountId]).map(
+              (accountId) => {
+                const values =
+                  accountId === draft.accountId ? draft : { ...draft, ...accountResults[accountId] }
+                const updateValues = (next: TradeFormValues) => {
+                  if (accountId === draft.accountId) setDraft(next)
+                  else
+                    setAccountResults((current) => ({
+                      ...current,
+                      [accountId]: {
+                        riskAmount: next.riskAmount,
+                        outcome: next.outcome,
+                        resultAmount: next.resultAmount,
+                      },
+                    }))
                 }
-                htmlFor="resultAmount"
-              >
-                <div className="relative">
-                  <Input
-                    id="resultAmount"
-                    type="number"
-                    min="0"
-                    step="0.01"
-                    inputMode="decimal"
-                    disabled={draft.outcome === "loss" || draft.outcome === "breakeven"}
-                    value={
-                      draft.outcome === "loss"
-                        ? draft.riskAmount || ""
-                        : draft.outcome === "breakeven"
-                          ? 0
-                          : draft.resultAmount || ""
-                    }
-                    onChange={(event) =>
-                      setDraft({ ...draft, resultAmount: Number(event.target.value) })
-                    }
-                    className="pr-20"
-                    required
-                  />
-                  <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 font-mono text-xs text-muted-foreground">
-                    {formatR(
-                      calculateRMultiple({
-                        pnlAmount: signedPnl({
-                          outcome: draft.outcome,
-                          resultAmount: draft.resultAmount,
-                        }),
-                        riskAmount: draft.riskAmount,
-                      }),
+                return (
+                  <fieldset key={accountId} className="space-y-4" disabled={saving}>
+                    {multiAccount && accountIds.length > 1 && (
+                      <legend className="mb-3 text-sm font-medium">
+                        {accounts.find((a) => a.id === accountId)?.name} (
+                        {accountCurrency(accountId)})
+                      </legend>
                     )}
-                  </span>
-                </div>
-              </Field>
-            </div>
+                    <fieldset>
+                      <legend className="mb-2 text-sm font-medium">Outcome</legend>
+                      <div className="grid grid-cols-3 gap-2">
+                        {(["win", "loss", "breakeven"] as TradeOutcome[]).map((outcome) => (
+                          <button
+                            key={outcome}
+                            type="button"
+                            aria-pressed={values.outcome === outcome}
+                            onClick={() =>
+                              updateValues({
+                                ...values,
+                                outcome,
+                                resultAmount:
+                                  outcome === "loss"
+                                    ? values.riskAmount
+                                    : outcome === "breakeven"
+                                      ? 0
+                                      : values.resultAmount,
+                              })
+                            }
+                            className={cn(
+                              "outcome-choice",
+                              values.outcome === outcome && outcomeStyle[outcome],
+                            )}
+                          >
+                            <OutcomeIcon outcome={outcome} />
+                            <span className="capitalize">{outcome}</span>
+                            {values.outcome === outcome && <Check className="ml-auto size-4" />}
+                          </button>
+                        ))}
+                      </div>
+                    </fieldset>
+
+                    <div className="grid gap-4 sm:grid-cols-2">
+                      <Field
+                        label={`Risked (${source?.currency ?? (trackers.some((t) => t.accountId === accountId) ? "USD" : profile.defaultCurrency)})`}
+                        htmlFor={`riskAmount-${accountId}`}
+                      >
+                        <Input
+                          id={`riskAmount-${accountId}`}
+                          type="number"
+                          min="0.01"
+                          step="0.01"
+                          inputMode="decimal"
+                          value={values.riskAmount || ""}
+                          onChange={(event) => {
+                            const riskAmount = Number(event.target.value)
+                            updateValues({
+                              ...values,
+                              riskAmount,
+                              resultAmount:
+                                values.outcome === "loss" ? riskAmount : values.resultAmount,
+                            })
+                          }}
+                          required
+                        />
+                      </Field>
+                      <Field
+                        label={
+                          values.outcome === "win"
+                            ? "Amount won"
+                            : values.outcome === "loss"
+                              ? "Amount lost (same as risk)"
+                              : "Result"
+                        }
+                        htmlFor={`resultAmount-${accountId}`}
+                      >
+                        <div className="relative">
+                          <Input
+                            id={`resultAmount-${accountId}`}
+                            type="number"
+                            min="0"
+                            step="0.01"
+                            inputMode="decimal"
+                            disabled={values.outcome === "loss" || values.outcome === "breakeven"}
+                            value={
+                              values.outcome === "loss"
+                                ? values.riskAmount || ""
+                                : values.outcome === "breakeven"
+                                  ? 0
+                                  : values.resultAmount || ""
+                            }
+                            onChange={(event) =>
+                              updateValues({ ...values, resultAmount: Number(event.target.value) })
+                            }
+                            className="pr-20"
+                            required
+                          />
+                          <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 font-mono text-xs text-muted-foreground">
+                            {formatR(
+                              calculateRMultiple({
+                                pnlAmount: signedPnl({
+                                  outcome: values.outcome,
+                                  resultAmount: values.resultAmount,
+                                }),
+                                riskAmount: values.riskAmount,
+                              }),
+                            )}
+                          </span>
+                        </div>
+                      </Field>
+                    </div>
+                  </fieldset>
+                )
+              },
+            )}
 
             <fieldset>
               <legend className="mb-2 text-sm font-medium">Tags</legend>
