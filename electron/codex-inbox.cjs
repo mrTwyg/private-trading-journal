@@ -12,7 +12,7 @@ const imageTypes = {
   ".webp": "image/webp",
 }
 
-function writeJsonAtomic(filePath, value) {
+function writeJsonAtomic({ filePath, value }) {
   const temporaryPath = `${filePath}.${process.pid}.tmp`
   fs.writeFileSync(temporaryPath, `${JSON.stringify(value, null, 2)}\n`, "utf8")
   fs.renameSync(temporaryPath, filePath)
@@ -36,11 +36,14 @@ function createCodexInbox({ documentsPath, codexHome, skillSourcePath, store, on
 
   function refreshContext() {
     ensureFolders()
-    writeJsonAtomic(path.join(inboxPath, "journal-context.json"), {
-      ...store.codexContext(),
-      inboxPath,
-      pendingPath,
-      updatedAt: new Date().toISOString(),
+    writeJsonAtomic({
+      filePath: path.join(inboxPath, "journal-context.json"),
+      value: {
+        ...store.codexContext(),
+        inboxPath,
+        pendingPath,
+        updatedAt: new Date().toISOString(),
+      },
     })
   }
 
@@ -66,11 +69,14 @@ function createCodexInbox({ documentsPath, codexHome, skillSourcePath, store, on
     fs.rmSync(skillPath, { recursive: true, force: true })
     fs.cpSync(skillSourcePath, skillPath, { recursive: true, force: true })
     fs.mkdirSync(path.join(skillPath, "references"), { recursive: true })
-    writeJsonAtomic(path.join(skillPath, "references", "local-config.json"), {
-      schemaVersion: 1,
-      inboxPath,
-      pendingPath,
-      contextPath: path.join(inboxPath, "journal-context.json"),
+    writeJsonAtomic({
+      filePath: path.join(skillPath, "references", "local-config.json"),
+      value: {
+        schemaVersion: 1,
+        inboxPath,
+        pendingPath,
+        contextPath: path.join(inboxPath, "journal-context.json"),
+      },
     })
     refreshContext()
     return status()
@@ -107,7 +113,7 @@ function createCodexInbox({ documentsPath, codexHome, skillSourcePath, store, on
     return { image: { fileName: path.basename(imagePath), contentType, bytes }, warning: "" }
   }
 
-  function moveManifest(sourcePath, destinationDirectory, fallbackName) {
+  function moveManifest({ sourcePath, destinationDirectory, fallbackName }) {
     const destination = path.join(destinationDirectory, `${fallbackName}.json`)
     if (fs.existsSync(destination)) fs.rmSync(destination, { force: true })
     fs.renameSync(sourcePath, destination)
@@ -132,8 +138,15 @@ function createCodexInbox({ documentsPath, codexHome, skillSourcePath, store, on
         warnings: [error instanceof Error ? error.message : "Invalid JSON"],
         createdAt: new Date().toISOString(),
       }
-      writeJsonAtomic(path.join(receiptsPath, `${importId}.receipt.json`), receipt)
-      moveManifest(filePath, rejectedPath, importId)
+      writeJsonAtomic({
+        filePath: path.join(receiptsPath, `${importId}.receipt.json`),
+        value: receipt,
+      })
+      moveManifest({
+        sourcePath: filePath,
+        destinationDirectory: rejectedPath,
+        fallbackName: importId,
+      })
       onReceipt(receipt)
       return
     }
@@ -144,9 +157,16 @@ function createCodexInbox({ documentsPath, codexHome, skillSourcePath, store, on
         .slice(0, 100) || crypto.randomUUID()
     try {
       const { image, warning } = loadImage(payload.screenshot)
-      const receipt = store.processCodexImport(payload, image, warning)
-      writeJsonAtomic(path.join(receiptsPath, `${importId}.receipt.json`), receipt)
-      moveManifest(filePath, processedPath, importId)
+      const receipt = store.processCodexImport({ payload, image, warning })
+      writeJsonAtomic({
+        filePath: path.join(receiptsPath, `${importId}.receipt.json`),
+        value: receipt,
+      })
+      moveManifest({
+        sourcePath: filePath,
+        destinationDirectory: processedPath,
+        fallbackName: importId,
+      })
       refreshContext()
       onReceipt(receipt)
     } catch (error) {
@@ -159,8 +179,15 @@ function createCodexInbox({ documentsPath, codexHome, skillSourcePath, store, on
         warnings: [],
         createdAt: new Date().toISOString(),
       }
-      writeJsonAtomic(path.join(receiptsPath, `${importId}.receipt.json`), receipt)
-      moveManifest(filePath, rejectedPath, importId)
+      writeJsonAtomic({
+        filePath: path.join(receiptsPath, `${importId}.receipt.json`),
+        value: receipt,
+      })
+      moveManifest({
+        sourcePath: filePath,
+        destinationDirectory: rejectedPath,
+        fallbackName: importId,
+      })
       onReceipt(receipt)
     }
   }

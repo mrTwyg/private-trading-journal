@@ -162,7 +162,7 @@ async function createJournalStore(databasePath) {
     fs.writeFileSync(temporaryPath, exportDatabase())
     fs.renameSync(temporaryPath, databasePath)
   }
-  function ensureColumn(table, column, definition) {
+  function ensureColumn({ table, column, definition }) {
     if (
       !rows(db, `PRAGMA table_info(${table})`)
         .map((item) => String(item.name))
@@ -186,17 +186,49 @@ async function createJournalStore(databasePath) {
         fs.copyFileSync(databasePath, backupPath, fs.constants.COPYFILE_EXCL)
     }
     db.run(schema)
-    ensureColumn("trades", "setup_description", "TEXT NOT NULL DEFAULT ''")
-    ensureColumn("trades", "source", "TEXT NOT NULL DEFAULT 'manual'")
-    ensureColumn("trades", "source_import_id", "TEXT")
-    ensureColumn("trades", "account_id", "TEXT")
-    ensureColumn("profile", "theme", "TEXT NOT NULL DEFAULT 'midnight'")
-    ensureColumn("profile", "accent", "TEXT NOT NULL DEFAULT 'theme'")
-    ensureColumn("profile", "density", "TEXT NOT NULL DEFAULT 'comfortable'")
-    ensureColumn("profile", "corners", "TEXT NOT NULL DEFAULT 'rounded'")
-    ensureColumn("profile", "font_mode", "TEXT NOT NULL DEFAULT 'clean'")
-    ensureColumn("profile", "motion", "TEXT NOT NULL DEFAULT 'system'")
-    ensureColumn("profile", "glow", "TEXT NOT NULL DEFAULT 'subtle'")
+    ensureColumn({
+      table: "trades",
+      column: "setup_description",
+      definition: "TEXT NOT NULL DEFAULT ''",
+    })
+    ensureColumn({
+      table: "trades",
+      column: "source",
+      definition: "TEXT NOT NULL DEFAULT 'manual'",
+    })
+    ensureColumn({ table: "trades", column: "source_import_id", definition: "TEXT" })
+    ensureColumn({ table: "trades", column: "account_id", definition: "TEXT" })
+    ensureColumn({
+      table: "profile",
+      column: "theme",
+      definition: "TEXT NOT NULL DEFAULT 'midnight'",
+    })
+    ensureColumn({
+      table: "profile",
+      column: "accent",
+      definition: "TEXT NOT NULL DEFAULT 'theme'",
+    })
+    ensureColumn({
+      table: "profile",
+      column: "density",
+      definition: "TEXT NOT NULL DEFAULT 'comfortable'",
+    })
+    ensureColumn({
+      table: "profile",
+      column: "corners",
+      definition: "TEXT NOT NULL DEFAULT 'rounded'",
+    })
+    ensureColumn({
+      table: "profile",
+      column: "font_mode",
+      definition: "TEXT NOT NULL DEFAULT 'clean'",
+    })
+    ensureColumn({
+      table: "profile",
+      column: "motion",
+      definition: "TEXT NOT NULL DEFAULT 'system'",
+    })
+    ensureColumn({ table: "profile", column: "glow", definition: "TEXT NOT NULL DEFAULT 'subtle'" })
     if (version < 4 && !one(db, "SELECT id FROM accounts LIMIT 1"))
       run(
         db,
@@ -375,7 +407,72 @@ async function createJournalStore(databasePath) {
     }
   }
 
-  function saveTrade(input) {
+  function saveTrades(input) {
+    if (
+      input.id ||
+      !Array.isArray(input.accountIds) ||
+      !input.accountIds.length ||
+      input.accountIds.some((id) => typeof id !== "string" || !id.trim())
+    )
+      throw new Error("Choose at least one active account.")
+    const accountIds = [...new Set(input.accountIds)]
+    const source = input.copyFromTradeId ? getTrade(input.copyFromTradeId) : null
+    if (input.copyFromTradeId && !source) throw new Error("Trade not found.")
+    const profile = one(db, "SELECT default_currency FROM profile LIMIT 1")
+    const currencies = accountIds.map((id) => {
+      const tracked = one(db, "SELECT status FROM account_tracking WHERE account_id = ?", [id])
+      return tracked ? "USD" : String(profile.default_currency)
+    })
+    if (new Set(currencies).size > 1 || (source && currencies[0] !== source.currency))
+      throw new Error(
+        "Choose accounts with the same currency. Log different currencies separately with the correct amounts.",
+      )
+    const storedImage =
+      source && !input.image && !input.removeImage
+        ? one(db, "SELECT file_name, content_type, bytes FROM trade_images WHERE trade_id = ?", [
+            source.id,
+          ])
+        : null
+    const image =
+      input.image ||
+      (storedImage
+        ? {
+            fileName: storedImage.file_name,
+            contentType: storedImage.content_type,
+            bytes: storedImage.bytes,
+          }
+        : null)
+    const before = exportDatabase()
+    db.run("BEGIN")
+    let trades
+    try {
+      trades = accountIds.map((accountId) =>
+        saveTrade(
+          {
+            payload: { ...input.payload, accountId },
+            image,
+          },
+          { inBatch: true },
+        ),
+      )
+      db.run("COMMIT")
+    } catch (error) {
+      db.run("ROLLBACK")
+      throw error
+    }
+    try {
+      persist()
+    } catch (error) {
+      // Restore memory too, so retrying a failed disk write cannot duplicate trades.
+      db.close()
+      db = new SQL.Database(before)
+      db.run("PRAGMA foreign_keys = ON")
+      throw error
+    }
+    return trades
+  }
+
+  function saveTrade(input, { inBatch = false } = {}) {
     const { payload } = input
     assertTradePayload(payload)
     const now = new Date().toISOString(),
@@ -425,7 +522,7 @@ async function createJournalStore(databasePath) {
         ? "codex"
         : "manual"
     const sourceImportId = existing ? existing.source_import_id : input.sourceImportId || null
-    db.run("BEGIN")
+    if (!inBatch) db.run("BEGIN")
     try {
       if (existing) {
         run(
@@ -498,16 +595,18 @@ async function createJournalStore(databasePath) {
       }
       if (payload.markAccountBlown)
         run(db, "UPDATE account_tracking SET status = 'blown' WHERE account_id = ?", [accountId])
-      db.run("COMMIT")
-      persist()
+      if (!inBatch) {
+        db.run("COMMIT")
+        persist()
+      }
       return getTrade(id)
     } catch (error) {
-      db.run("ROLLBACK")
+      if (!inBatch) db.run("ROLLBACK")
       throw error
     }
   }
 
-  function ensureNamedItem(type, rawName) {
+  function ensureNamedItem({ type, name: rawName }) {
     const name = cleanShort(rawName, 60)
     if (!name) return null
     const table = type === "setup" ? "setups" : "tags",
@@ -519,7 +618,7 @@ async function createJournalStore(databasePath) {
     return id
   }
 
-  function receiptFromRow(row, statusOverride) {
+  function receiptFromRow({ row, statusOverride }) {
     return {
       importId: String(row.import_id),
       status: statusOverride ?? String(row.status),
@@ -531,7 +630,11 @@ async function createJournalStore(databasePath) {
     }
   }
 
-  function processCodexImport(rawPayload, importedImage = null, imageWarning = "") {
+  function processCodexImport({
+    payload: rawPayload,
+    image: importedImage = null,
+    warning: imageWarning = "",
+  }) {
     const payload = rawPayload && typeof rawPayload === "object" ? rawPayload : {},
       importId = cleanShort(payload.importId, 100)
     if (!importId || payload.schemaVersion !== 1 || payload.source !== "codex")
@@ -539,7 +642,7 @@ async function createJournalStore(databasePath) {
     const previous = one(db, "SELECT * FROM import_receipts WHERE import_id = ?", [importId])
     if (previous)
       return {
-        ...receiptFromRow(previous, "duplicate"),
+        ...receiptFromRow({ row: previous, statusOverride: "duplicate" }),
         message: `Already processed as ${previous.status}.`,
       }
     const existingTrade = one(db, "SELECT id FROM trades WHERE source_import_id = ?", [importId])
@@ -666,8 +769,12 @@ async function createJournalStore(databasePath) {
         throw error
       }
     }
-    const setupId = normalized.setupName ? ensureNamedItem("setup", normalized.setupName) : null
-    const tagIds = normalized.tagNames.map((name) => ensureNamedItem("tag", name)).filter(Boolean)
+    const setupId = normalized.setupName
+      ? ensureNamedItem({ type: "setup", name: normalized.setupName })
+      : null
+    const tagIds = normalized.tagNames
+      .map((name) => ensureNamedItem({ type: "tag", name }))
+      .filter(Boolean)
     const pnlAmount =
       normalized.outcome === "loss"
         ? -normalized.resultAmount
@@ -792,24 +899,24 @@ async function createJournalStore(databasePath) {
     run(db, "DELETE FROM trades WHERE id = ?", [id])
     persist()
   }
-  function addMetadata(type, rawName) {
+  function addMetadata({ type, name: rawName }) {
     const name = cleanShort(rawName, 60),
       table = type === "setup" ? "setups" : type === "tag" ? "tags" : null
     if (!name) throw new Error("Enter a name first.")
     if (!table) throw new Error("Unknown item type.")
     if (one(db, `SELECT id FROM ${table} WHERE name = ? COLLATE NOCASE`, [name]))
       throw new Error("That name already exists.")
-    const id = ensureNamedItem(type, name)
+    const id = ensureNamedItem({ type, name })
     persist()
     return type === "setup" ? { id, name } : { id, name, color: "cyan" }
   }
-  function deleteMetadata(type, id) {
+  function deleteMetadata({ type, id }) {
     const table = type === "setup" ? "setups" : type === "tag" ? "tags" : null
     if (!table) throw new Error("Unknown item type.")
     run(db, `DELETE FROM ${table} WHERE id = ?`, [id])
     persist()
   }
-  function addAccount(rawName, rawColor, persistNow = true) {
+  function addAccount({ name: rawName, color: rawColor, persistNow = true }) {
     const name = cleanShort(rawName, 60),
       color = allowedAccountColors.has(rawColor) ? rawColor : "cyan"
     if (!name) throw new Error("Enter an account name first.")
@@ -820,7 +927,7 @@ async function createJournalStore(databasePath) {
     if (persistNow) persist()
     return { id, name, color, archived: false }
   }
-  function updateAccount(id, changes) {
+  function updateAccount({ id, changes }) {
     const account = one(db, "SELECT * FROM accounts WHERE id = ?", [id])
     if (!account) throw new Error("Account not found.")
     const name = cleanShort(changes?.name, 60),
@@ -844,11 +951,11 @@ async function createJournalStore(databasePath) {
     persist()
     return { id, name, color, archived }
   }
-  function createTrackedAccount(name, color, input) {
+  function createTrackedAccount({ name, color, tracker: input }) {
     db.run("BEGIN")
     try {
-      const account = addAccount(name, color, false)
-      saveAccountTracker(account.id, input, false)
+      const account = addAccount({ name, color, persistNow: false })
+      saveAccountTracker({ id: account.id, tracker: input, persistNow: false })
       db.run("COMMIT")
     } catch (error) {
       db.run("ROLLBACK")
@@ -857,7 +964,7 @@ async function createJournalStore(databasePath) {
     persist()
     return bootstrap()
   }
-  function deleteAccount(id, confirmationName) {
+  function deleteAccount({ id, confirmationName }) {
     const account = one(db, "SELECT name FROM accounts WHERE id = ?", [id])
     if (!account) throw new Error("Account not found.")
     if (confirmationName !== account.name)
@@ -939,7 +1046,7 @@ async function createJournalStore(databasePath) {
       ),
     }))
   }
-  function saveAccountTracker(id, input, persistNow = true) {
+  function saveAccountTracker({ id, tracker: input, persistNow = true }) {
     if (!one(db, "SELECT id FROM accounts WHERE id = ?", [id]))
       throw new Error("Account not found.")
     if (!input || !["evaluation", "live", "blown", "closed"].includes(input.status))
@@ -1004,7 +1111,7 @@ async function createJournalStore(databasePath) {
     if (persistNow) persist()
     return bootstrap()
   }
-  function passAccount(id, openingBalance) {
+  function passAccount({ id, openingBalance }) {
     const evaluation = one(
       db,
       "SELECT t.*, a.name, a.color FROM account_tracking t JOIN accounts a ON a.id = t.account_id WHERE t.account_id = ?",
@@ -1048,7 +1155,7 @@ async function createJournalStore(databasePath) {
     persist()
     return bootstrap()
   }
-  function adjustAccount(id, amount, reason) {
+  function adjustAccount({ id, amount, reason }) {
     const tracker = one(db, "SELECT status FROM account_tracking WHERE account_id = ?", [id])
     if (!tracker || !["evaluation", "live"].includes(tracker.status))
       throw new Error("Choose an active tracked account.")
@@ -1118,6 +1225,7 @@ async function createJournalStore(databasePath) {
   initialize()
   return {
     bootstrap,
+    saveTrades,
     saveTrade,
     duplicateTrade,
     deleteTrade,

@@ -24,50 +24,51 @@ app.setAppUserModelId("local.tradingjournal.desktop")
 
 function registerHandlers() {
   ipcMain.handle("journal:load", () => store.bootstrap())
-  ipcMain.handle("journal:create-tracked-account", (_event, name, color, input) => {
-    const result = store.createTrackedAccount(name, color, input)
+  ipcMain.handle("journal:create-tracked-account", (_event, { name, color, tracker: input }) => {
+    const result = store.createTrackedAccount({ name, color, tracker: input })
     codexInbox.refreshContext()
     return result
   })
-  ipcMain.handle("journal:delete-account", (_event, id, confirmationName) => {
-    const result = store.deleteAccount(id, confirmationName)
+  ipcMain.handle("journal:delete-account", (_event, { id, confirmationName }) => {
+    const result = store.deleteAccount({ id, confirmationName })
     codexInbox.refreshContext()
     return result
   })
   ipcMain.handle("journal:add-firm", (_event, name) => store.addFirm(name))
   ipcMain.handle("journal:delete-firm", (_event, id) => store.deleteFirm(id))
-  ipcMain.handle("journal:save-account-tracker", (_event, id, input) => {
-    const result = store.saveAccountTracker(id, input)
+  ipcMain.handle("journal:save-account-tracker", (_event, { id, tracker: input }) => {
+    const result = store.saveAccountTracker({ id, tracker: input })
     codexInbox.refreshContext()
     return result
   })
-  ipcMain.handle("journal:pass-account", (_event, id, balance) => {
-    const result = store.passAccount(id, balance)
+  ipcMain.handle("journal:pass-account", (_event, { id, openingBalance }) => {
+    const result = store.passAccount({ id, openingBalance })
     codexInbox.refreshContext()
     return result
   })
-  ipcMain.handle("journal:adjust-account", (_event, id, amount, reason) =>
-    store.adjustAccount(id, amount, reason),
+  ipcMain.handle("journal:adjust-account", (_event, { id, amount, reason }) =>
+    store.adjustAccount({ id, amount, reason }),
   )
+  ipcMain.handle("journal:save-trades", (_event, input) => store.saveTrades(input))
   ipcMain.handle("journal:save-trade", (_event, input) => store.saveTrade(input))
   ipcMain.handle("journal:duplicate-trade", (_event, id) => store.duplicateTrade(id))
   ipcMain.handle("journal:delete-trade", (_event, id) => store.deleteTrade(id))
-  ipcMain.handle("journal:add-metadata", (_event, type, name) => {
-    const result = store.addMetadata(type, name)
+  ipcMain.handle("journal:add-metadata", (_event, { type, name }) => {
+    const result = store.addMetadata({ type, name })
     codexInbox.refreshContext()
     return result
   })
-  ipcMain.handle("journal:delete-metadata", (_event, type, id) => {
-    store.deleteMetadata(type, id)
+  ipcMain.handle("journal:delete-metadata", (_event, { type, id }) => {
+    store.deleteMetadata({ type, id })
     codexInbox.refreshContext()
   })
-  ipcMain.handle("journal:add-account", (_event, name, color) => {
-    const result = store.addAccount(name, color)
+  ipcMain.handle("journal:add-account", (_event, { name, color }) => {
+    const result = store.addAccount({ name, color })
     codexInbox.refreshContext()
     return result
   })
-  ipcMain.handle("journal:update-account", (_event, id, changes) => {
-    const result = store.updateAccount(id, changes)
+  ipcMain.handle("journal:update-account", (_event, { id, changes }) => {
+    const result = store.updateAccount({ id, changes })
     codexInbox.refreshContext()
     return result
   })

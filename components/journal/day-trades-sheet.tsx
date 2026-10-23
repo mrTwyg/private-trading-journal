@@ -36,7 +36,7 @@ export function DayTradesSheet({
           </SheetTitle>
           <SheetDescription>
             {dayTrades.length
-              ? `${dayTrades.length} ${dayTrades.length === 1 ? "trade" : "trades"} · ${formatTradePnl(dayTrades, currency)}`
+              ? `${dayTrades.length} ${dayTrades.length === 1 ? "trade" : "trades"} · ${formatTradePnl({ trades: dayTrades, defaultCurrency: currency })}`
               : "No trades logged."}
           </SheetDescription>
           {selectedDay && (

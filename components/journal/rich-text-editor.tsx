@@ -16,7 +16,7 @@ export function RichTextEditor({
       editorRef.current.innerHTML = value
   }, [value])
 
-  const command = (name: string, commandValue?: string) => {
+  const command = ({ name, commandValue }: { name: string; commandValue?: string }) => {
     editorRef.current?.focus()
     document.execCommand(name, false, commandValue)
     onChange(editorRef.current?.innerHTML ?? "")
@@ -32,7 +32,7 @@ export function RichTextEditor({
           type="button"
           variant="ghost"
           size="icon-sm"
-          onClick={() => command("bold")}
+          onClick={() => command({ name: "bold" })}
           aria-label="Bold"
         >
           <Bold />
@@ -41,7 +41,7 @@ export function RichTextEditor({
           type="button"
           variant="ghost"
           size="icon-sm"
-          onClick={() => command("italic")}
+          onClick={() => command({ name: "italic" })}
           aria-label="Italic"
         >
           <Italic />
@@ -50,7 +50,7 @@ export function RichTextEditor({
           type="button"
           variant="ghost"
           size="icon-sm"
-          onClick={() => command("insertUnorderedList")}
+          onClick={() => command({ name: "insertUnorderedList" })}
           aria-label="Bulleted list"
         >
           <List />
@@ -61,7 +61,7 @@ export function RichTextEditor({
           size="icon-sm"
           onClick={() => {
             const url = window.prompt("Paste a link")
-            if (url) command("createLink", url)
+            if (url) command({ name: "createLink", commandValue: url })
           }}
           aria-label="Add link"
         >

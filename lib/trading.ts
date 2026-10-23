@@ -13,19 +13,31 @@ import {
 
 import type { Trade, TradeOutcome } from "@/lib/types"
 
-export function signedPnl(outcome: TradeOutcome, resultAmount: number) {
+export function signedPnl({
+  outcome,
+  resultAmount,
+}: {
+  outcome: TradeOutcome
+  resultAmount: number
+}) {
   const amount = Math.abs(Number(resultAmount) || 0)
   if (outcome === "win") return amount
   if (outcome === "loss") return -amount
   return 0
 }
 
-export function calculateRMultiple(pnlAmount: number, riskAmount: number) {
+export function calculateRMultiple({
+  pnlAmount,
+  riskAmount,
+}: {
+  pnlAmount: number
+  riskAmount: number
+}) {
   if (!Number.isFinite(riskAmount) || riskAmount <= 0) return 0
   return Number((pnlAmount / riskAmount).toFixed(4))
 }
 
-export function formatMoney(value: number, currency: string) {
+export function formatMoney({ value, currency }: { value: number; currency: string }) {
   return new Intl.NumberFormat("en-GB", {
     style: "currency",
     currency,
@@ -38,16 +50,25 @@ export function formatR(value: number) {
   return `${prefix}${value.toFixed(2)}R`
 }
 
-export function formatTradePnl(trades: Trade[], defaultCurrency: string) {
+export function formatTradePnl({
+  trades,
+  defaultCurrency,
+}: {
+  trades: Trade[]
+  defaultCurrency: string
+}) {
   const totals = new Map<string, number>()
   for (const trade of trades)
     totals.set(trade.currency, (totals.get(trade.currency) ?? 0) + trade.pnlAmount)
   return totals.size
-    ? [...totals].map(([currency, amount]) => formatMoney(amount, currency)).join(" / ")
-    : formatMoney(0, defaultCurrency)
+    ? [...totals].map(([currency, amount]) => formatMoney({ value: amount, currency })).join(" / ")
+    : formatMoney({ value: 0, currency: defaultCurrency })
 }
 
-export function defaultTradeDateTime(iso?: string, selectedDay?: Date | null) {
+export function defaultTradeDateTime({
+  iso,
+  selectedDay,
+}: { iso?: string; selectedDay?: Date | null } = {}) {
   const now = new Date()
   const date = iso ? parseISO(iso) : selectedDay ? new Date(selectedDay) : now
   if (!iso && selectedDay) date.setHours(now.getHours(), now.getMinutes(), 0, 0)
@@ -67,7 +88,7 @@ export function aggregateTrades(trades: Trade[]) {
   )
 }
 
-export function calendarDays(anchor: Date, view: "week" | "month") {
+export function calendarDays({ anchor, view }: { anchor: Date; view: "week" | "month" }) {
   const start =
     view === "week"
       ? startOfWeek(anchor, { weekStartsOn: 1 })
@@ -82,15 +103,23 @@ export function calendarDays(anchor: Date, view: "week" | "month") {
   return days
 }
 
-export function tradesForDay(trades: Trade[], day: Date) {
+export function tradesForDay({ trades, day }: { trades: Trade[]; day: Date }) {
   return trades.filter((trade) => isSameDay(parseISO(trade.tradedAt), day))
 }
 
-export function shiftAnchor(anchor: Date, view: "week" | "month", amount: number) {
+export function shiftAnchor({
+  anchor,
+  view,
+  amount,
+}: {
+  anchor: Date
+  view: "week" | "month"
+  amount: number
+}) {
   return view === "week" ? addDays(anchor, amount * 7) : addMonths(anchor, amount)
 }
 
-export function periodLabel(anchor: Date, view: "week" | "month") {
+export function periodLabel({ anchor, view }: { anchor: Date; view: "week" | "month" }) {
   if (view === "month") return format(anchor, "MMMM yyyy")
   const start = startOfWeek(anchor, { weekStartsOn: 1 })
   const end = endOfWeek(anchor, { weekStartsOn: 1 })

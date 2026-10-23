@@ -5,6 +5,8 @@ import "@testing-library/jest-dom/vitest"
 import { I18nProvider } from "react-aria-components/I18nProvider"
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest"
 
+import { TradeFormDialog } from "@/components/journal/trade-form-dialog"
+import type { Profile, Trade } from "@/lib/types"
 import { DateTimeField } from "@/components/ui/date-time-field"
 import {
   Select,
@@ -75,11 +77,15 @@ describe("React Aria journal controls", () => {
     fireEvent.click(screen.getByRole("option", { name: "Topstep" }))
     fireEvent.click(screen.getByRole("button", { name: "Create account" }))
     await waitFor(() =>
-      expect(createTrackedAccount).toHaveBeenCalledWith(
-        "My evaluation",
-        "cyan",
-        expect.objectContaining({ firm: "Topstep", openingBalance: 50000, purchasePrice: 0 }),
-      ),
+      expect(createTrackedAccount).toHaveBeenCalledWith({
+        name: "My evaluation",
+        color: "cyan",
+        tracker: expect.objectContaining({
+          firm: "Topstep",
+          openingBalance: 50000,
+          purchasePrice: 0,
+        }),
+      }),
     )
     expect(onReload).toHaveBeenCalledWith(bootstrap)
   })
@@ -103,7 +109,7 @@ describe("React Aria journal controls", () => {
     expect(onClose).not.toHaveBeenCalled()
     fireEvent.click(screen.getByRole("button", { name: "Delete permanently" }))
     await waitFor(() => expect(onClose).toHaveBeenCalledOnce())
-    expect(onConfirm).toHaveBeenLastCalledWith(account, account.name)
+    expect(onConfirm).toHaveBeenLastCalledWith({ account, confirmationName: account.name })
   })
 
   it("shows the tracked balance and confirms a fresh live account before passing", async () => {
@@ -144,7 +150,9 @@ describe("React Aria journal controls", () => {
       target: { value: "51000" },
     })
     fireEvent.click(screen.getByRole("button", { name: "Confirm" }))
-    await waitFor(() => expect(passAccount).toHaveBeenCalledWith("evaluation-id", 51000))
+    await waitFor(() =>
+      expect(passAccount).toHaveBeenCalledWith({ id: "evaluation-id", openingBalance: 51000 }),
+    )
     await waitFor(() => expect(onReload).toHaveBeenCalled())
   })
   it("opens the keyboard-ready instrument list", () => {
@@ -202,5 +210,132 @@ describe("React Aria journal controls", () => {
     expect(screen.getByLabelText("Trade time")).toBeTruthy()
     fireEvent.click(screen.getByRole("button", { name: /Open calendar/ }))
     expect(screen.getByRole("grid")).toBeTruthy()
+  })
+})
+
+const copyProfile = { defaultCurrency: "USD", timezone: "Europe/London" } as Profile
+const copyAccounts = [
+  { id: "one", name: "First", color: "cyan", archived: false },
+  { id: "two", name: "Second", color: "cyan", archived: false },
+  { id: "old", name: "Archived", color: "cyan", archived: true },
+]
+const sourceTrade = {
+  accountName: "First",
+  accountColor: "cyan",
+  setupName: null,
+  rMultiple: 2.5,
+  createdAt: "2026-10-19T12:00:00Z",
+  updatedAt: "2026-10-19T12:00:00Z",
+  source: "manual",
+  sourceImportId: null,
+  id: "source",
+  accountId: "one",
+  tradedAt: "2026-10-19T12:00:00Z",
+  symbol: "MNQ",
+  direction: "long",
+  setupId: null,
+  setupDescription: "Sweep",
+  tags: [],
+  riskAmount: 100,
+  outcome: "win",
+  pnlAmount: 250,
+  noteHtml: "<p>Patient entry</p>",
+  currency: "USD",
+  image: {
+    id: "image",
+    tradeId: "source",
+    fileName: "chart.png",
+    contentType: "image/png",
+    url: "data:image/png;base64,iVBORw0KGgo=",
+  },
+} satisfies Trade
+
+function renderTradeForm(props: Partial<React.ComponentProps<typeof TradeFormDialog>> = {}) {
+  const onSave = vi.fn().mockResolvedValue(undefined)
+  const onOpenChange = vi.fn()
+  render(
+    <I18nProvider locale="en-GB">
+      <TradeFormDialog
+        open
+        onOpenChange={onOpenChange}
+        profile={copyProfile}
+        accounts={copyAccounts}
+        trackers={[]}
+        selectedAccountId="two"
+        setups={[]}
+        tags={[]}
+        onSave={onSave}
+        {...props}
+      />
+    </I18nProvider>,
+  )
+  return { onSave, onOpenChange }
+}
+
+describe("multi-account trade form", () => {
+  it("defaults to the selected account and submits one shared trade to multiple destinations", async () => {
+    const { onSave } = renderTradeForm()
+    expect(screen.getByRole("checkbox", { name: "Second (USD)" })).toBeChecked()
+    expect(screen.getByRole("checkbox", { name: "First (USD)" })).not.toBeChecked()
+    expect(screen.queryByText("Archived (USD)")).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole("checkbox", { name: "First (USD)" }))
+    fireEvent.click(screen.getByRole("button", { name: /Instrument/ }))
+    fireEvent.click(screen.getByRole("option", { name: "MNQ" }))
+    fireEvent.change(screen.getByLabelText("Risked (USD)"), { target: { value: "100" } })
+    fireEvent.change(screen.getByLabelText("Amount won"), { target: { value: "250" } })
+    fireEvent.click(screen.getByRole("button", { name: "Save to 2 accounts" }))
+    await waitFor(() =>
+      expect(onSave).toHaveBeenCalledWith(
+        expect.objectContaining({
+          draft: expect.objectContaining({ symbol: "MNQ", riskAmount: 100, resultAmount: 250 }),
+          image: null,
+          removeImage: false,
+          accountIds: ["two", "one"],
+        }),
+      ),
+    )
+  })
+
+  it("prefills copies without saving and lets risk/result change before saving", async () => {
+    const { onSave } = renderTradeForm({ copyTrade: sourceTrade })
+    expect(onSave).not.toHaveBeenCalled()
+    expect(screen.getByRole("button", { name: "Save to 0 accounts" })).toBeDisabled()
+    expect(screen.getByLabelText("Risked (USD)")).toHaveValue(100)
+    expect(screen.getByAltText("Trade screenshot preview")).toHaveAttribute(
+      "src",
+      sourceTrade.image!.url,
+    )
+    fireEvent.click(screen.getByRole("checkbox", { name: "Second (USD)" }))
+    fireEvent.change(screen.getByLabelText("Risked (USD)"), { target: { value: "200" } })
+    fireEvent.change(screen.getByLabelText("Amount won"), { target: { value: "600" } })
+    fireEvent.click(screen.getByRole("button", { name: "Save to 1 account" }))
+    await waitFor(() =>
+      expect(onSave).toHaveBeenCalledWith(
+        expect.objectContaining({
+          draft: expect.objectContaining({
+            symbol: "MNQ",
+            riskAmount: 200,
+            resultAmount: 600,
+            setupDescription: "Sweep",
+            noteHtml: sourceTrade.noteHtml,
+          }),
+          image: null,
+          removeImage: false,
+          accountIds: ["two"],
+        }),
+      ),
+    )
+  })
+
+  it("keeps edits single-account and preserves the form after a failed save", async () => {
+    const onSave = vi.fn().mockRejectedValue(new Error("Choose an active account."))
+    const { onOpenChange } = renderTradeForm({ trade: sourceTrade, onSave })
+    expect(screen.queryByText("0 accounts selected.")).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole("button", { name: "Save changes" }))
+    await waitFor(() =>
+      expect(screen.getByRole("alert")).toHaveTextContent("Choose an active account."),
+    )
+    expect(onOpenChange).not.toHaveBeenCalled()
+    expect(screen.getByLabelText("Risked (USD)")).toHaveValue(100)
   })
 })

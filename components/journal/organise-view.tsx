@@ -31,10 +31,10 @@ export function OrganiseView({
   setups: Setup[]
   tags: Tag[]
   firms: Firm[]
-  onAdd: (type: "setup" | "tag", name: string) => Promise<void>
-  onDelete: (type: "setup" | "tag", id: string) => Promise<void>
+  onAdd: (input: { type: "setup" | "tag"; name: string }) => Promise<void>
+  onDelete: (input: { type: "setup" | "tag"; id: string }) => Promise<void>
   onManageAccounts: () => void
-  onDeleteAccount: (account: TradingAccount, confirmationName: string) => Promise<void>
+  onDeleteAccount: (input: { account: TradingAccount; confirmationName: string }) => Promise<void>
   onAddFirm: (name: string) => Promise<void>
   onDeleteFirm: (id: string) => Promise<void>
   onUpdateAccount: (account: TradingAccount) => Promise<void>
@@ -120,7 +120,7 @@ export function OrganiseView({
           onSubmit={async (event) => {
             event.preventDefault()
             if (setupName.trim()) {
-              await onAdd("setup", setupName.trim())
+              await onAdd({ type: "setup", name: setupName.trim() })
               setSetupName("")
             }
           }}
@@ -142,7 +142,7 @@ export function OrganiseView({
               <Button
                 variant="ghost"
                 size="icon-sm"
-                onClick={() => onDelete("setup", setup.id)}
+                onClick={() => onDelete({ type: "setup", id: setup.id })}
                 aria-label={`Delete ${setup.name}`}
               >
                 <Trash2 />
@@ -161,7 +161,7 @@ export function OrganiseView({
           onSubmit={async (event) => {
             event.preventDefault()
             if (tagName.trim()) {
-              await onAdd("tag", tagName.trim())
+              await onAdd({ type: "tag", name: tagName.trim() })
               setTagName("")
             }
           }}
@@ -186,7 +186,7 @@ export function OrganiseView({
               <Button
                 variant="ghost"
                 size="icon-sm"
-                onClick={() => onDelete("tag", tag.id)}
+                onClick={() => onDelete({ type: "tag", id: tag.id })}
                 aria-label={`Delete ${tag.name}`}
               >
                 <Trash2 />

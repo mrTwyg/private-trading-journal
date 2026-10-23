@@ -11,7 +11,7 @@ import type {
   Trade,
   TradingAccount,
   TradeDraft as CodexDraft,
-  TradeFormValues,
+  TradeFormSaveInput,
 } from "@/lib/types"
 import { formatMoney, formatR, signedPnl, tradesForDay } from "@/lib/trading"
 import { type Page, JournalShell } from "@/components/journal/journal-shell"
@@ -45,6 +45,7 @@ export function JournalWorkspace({
   const [drafts, setDrafts] = useState(initial.drafts)
   const [profile, setProfile] = useState(initial.profile)
   const [formOpen, setFormOpen] = useState(false)
+  const [copyingTrade, setCopyingTrade] = useState<Trade | null>(null)
   const [editingTrade, setEditingTrade] = useState<Trade | null>(null)
   const [editingDraft, setEditingDraft] = useState<CodexDraft | null>(null)
   const [selectedTrade, setSelectedTrade] = useState<Trade | null>(null)
@@ -132,7 +133,7 @@ export function JournalWorkspace({
               const imported = data.trades.find((trade) => trade.id === receipt.tradeId)
               toast.success(
                 imported
-                  ? `${imported.symbol} ${imported.direction} saved: ${formatMoney(imported.pnlAmount, imported.currency)}, ${formatR(imported.rMultiple)}`
+                  ? `${imported.symbol} ${imported.direction} saved: ${formatMoney({ value: imported.pnlAmount, currency: imported.currency })}, ${formatR(imported.rMultiple)}`
                   : receipt.message,
                 {
                   action: {
@@ -171,19 +172,22 @@ export function JournalWorkspace({
       ? trades
       : trades.filter((trade) => trade.accountId === selectedAccountId)
   const dayTrades = selectedDay
-    ? tradesForDay(visibleTrades, selectedDay).sort((a, b) => b.tradedAt.localeCompare(a.tradedAt))
+    ? tradesForDay({ trades: visibleTrades, day: selectedDay }).sort((a, b) =>
+        b.tradedAt.localeCompare(a.tradedAt),
+      )
     : []
 
   const openNewTrade = (day: Date | null = null) => {
     setEditingTrade(null)
     setEditingDraft(null)
+    setCopyingTrade(null)
     setNewTradeDay(day)
     setSelectedDay(null)
     setFormOpen(true)
   }
 
-  const saveTrade = async (draft: TradeFormValues, image: File | null, removeImage: boolean) => {
-    const pnl = signedPnl(draft.outcome, draft.resultAmount)
+  const saveTrade = async ({ draft, image, removeImage, accountIds }: TradeFormSaveInput) => {
+    const pnl = signedPnl({ outcome: draft.outcome, resultAmount: draft.resultAmount })
     const payload = {
       accountId: draft.accountId,
       markAccountBlown: draft.markAccountBlown,
@@ -211,24 +215,33 @@ export function JournalWorkspace({
         : null,
       removeImage,
     }
-    const storedTrade = editingDraft
-      ? await api.completeDraft({ ...input, id: undefined, draftId: editingDraft.id })
-      : await api.saveTrade(input)
+    const storedTrades = editingDraft
+      ? [await api.completeDraft({ ...input, id: undefined, draftId: editingDraft.id })]
+      : editingTrade
+        ? [await api.saveTrade(input)]
+        : await api.saveTrades({ ...input, accountIds, copyFromTradeId: copyingTrade?.id })
     setTrades((items) =>
       editingTrade
-        ? items.map((item) => (item.id === storedTrade.id ? storedTrade : item))
-        : [storedTrade, ...items],
+        ? items.map((item) => (item.id === storedTrades[0].id ? storedTrades[0] : item))
+        : [...storedTrades, ...items],
+    )
+    toast.success(
+      editingTrade
+        ? "Trade updated"
+        : `Trade saved to ${storedTrades.length} account${storedTrades.length === 1 ? "" : "s"}`,
     )
     if (editingDraft) setDrafts((items) => items.filter((item) => item.id !== editingDraft.id))
     setEditingTrade(null)
     setEditingDraft(null)
   }
 
-  const duplicateTrade = async (trade: Trade) => {
-    const duplicate = await api.duplicateTrade(trade.id)
-    setTrades((items) => [duplicate, ...items])
-    setSelectedTrade(duplicate)
-    toast.success("Trade duplicated")
+  const duplicateTrade = (trade: Trade) => {
+    setCopyingTrade(trade)
+    setEditingTrade(null)
+    setEditingDraft(null)
+    setNewTradeDay(null)
+    setSelectedTrade(null)
+    setFormOpen(true)
   }
 
   const removeTrade = async (trade: Trade) => {
@@ -238,9 +251,9 @@ export function JournalWorkspace({
     setDeleteTrade(null)
   }
 
-  const addMetadata = async (type: "setup" | "tag", name: string) => {
+  const addMetadata = async ({ type, name }: { type: "setup" | "tag"; name: string }) => {
     try {
-      const item = await api.addMetadata(type, name)
+      const item = await api.addMetadata({ type, name })
       if (type === "setup") setSetups((items) => [...items, item as Setup])
       else setTags((items) => [...items, item as Tag])
     } catch (error) {
@@ -249,14 +262,20 @@ export function JournalWorkspace({
     }
   }
 
-  const deleteMetadata = async (type: "setup" | "tag", id: string) => {
-    await api.deleteMetadata(type, id)
+  const deleteMetadata = async ({ type, id }: { type: "setup" | "tag"; id: string }) => {
+    await api.deleteMetadata({ type, id })
     if (type === "setup") setSetups((items) => items.filter((item) => item.id !== id))
     else setTags((items) => items.filter((item) => item.id !== id))
   }
 
-  const deleteAccount = async (account: TradingAccount, confirmationName: string) => {
-    reloadAccounts(await api.deleteAccount(account.id, confirmationName))
+  const deleteAccount = async ({
+    account,
+    confirmationName,
+  }: {
+    account: TradingAccount
+    confirmationName: string
+  }) => {
+    reloadAccounts(await api.deleteAccount({ id: account.id, confirmationName }))
     toast.success("Account permanently deleted")
   }
 
@@ -272,7 +291,7 @@ export function JournalWorkspace({
 
   const updateAccount = async (account: TradingAccount) => {
     try {
-      const saved = await api.updateAccount(account.id, account)
+      const saved = await api.updateAccount({ id: account.id, changes: account })
       setAccounts((items) => items.map((item) => (item.id === saved.id ? saved : item)))
       if (saved.archived && selectedAccountId === saved.id) setSelectedAccountId("all")
     } catch (error) {
@@ -334,6 +353,7 @@ export function JournalWorkspace({
             onOpenChange={(open) => {
               setFormOpen(open)
               if (!open) {
+                setCopyingTrade(null)
                 setEditingTrade(null)
                 setEditingDraft(null)
                 setNewTradeDay(null)
@@ -346,6 +366,7 @@ export function JournalWorkspace({
             setups={setups}
             tags={tags}
             trade={editingTrade}
+            copyTrade={copyingTrade}
             importDraft={editingDraft}
             selectedDay={newTradeDay}
             onSave={saveTrade}

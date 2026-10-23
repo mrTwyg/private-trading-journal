@@ -15,12 +15,15 @@ type Store = {
   bootstrap(): JournalBootstrap
   saveTrade(input: DesktopSaveTradeInput): Trade
   deleteTrade(id: string): void
-  saveAccountTracker(id: string, input: AccountTrackerInput): JournalBootstrap
-  passAccount(id: string, balance: number): JournalBootstrap
-  adjustAccount(id: string, amount: number, reason: string): JournalBootstrap
-  addAccount(name: string, color: string): { id: string }
+  saveAccountTracker(input: { id: string; tracker: AccountTrackerInput }): JournalBootstrap
+  passAccount(input: { id: string; openingBalance: number }): JournalBootstrap
+  adjustAccount(input: { id: string; amount: number; reason: string }): JournalBootstrap
+  addAccount(input: { name: string; color: string }): { id: string }
   duplicateTrade(id: string): Trade
-  processCodexImport(input: Record<string, unknown>): { status: string; draftId?: string }
+  processCodexImport(input: { payload: Record<string, unknown> }): {
+    status: string
+    draftId?: string
+  }
   importDatabase(bytes: Uint8Array): JournalBootstrap
   exportDatabase(): Uint8Array
   close(): void
@@ -50,10 +53,13 @@ const tracking: AccountTrackerInput = {
   purchaseDate: "2026-10-18",
   discountCode: "SALE",
 }
-const trade = (
-  accountId: string,
+const trade = ({
+  accountId,
   tradedAt = "2026-10-19T12:00:00.000Z",
-): DesktopSaveTradeInput => ({
+}: {
+  accountId: string
+  tradedAt?: string
+}): DesktopSaveTradeInput => ({
   payload: {
     accountId,
     tradedAt,
@@ -73,7 +79,7 @@ describe("account tracking", () => {
     const { file, store } = await open()
     const account = store.bootstrap().accounts[0]
     store.saveTrade({
-      ...trade(account.id, "2026-10-01T12:00:00.000Z"),
+      ...trade({ accountId: account.id, tradedAt: "2026-10-01T12:00:00.000Z" }),
       image: {
         fileName: "chart.png",
         contentType: "image/png",
@@ -106,43 +112,46 @@ describe("account tracking", () => {
   it("calculates USD balances from the start, including edits, moves, deletes and adjustments", async () => {
     const { store } = await open()
     const id = store.bootstrap().accounts[0].id
-    store.saveTrade(trade(id, "2026-10-01T12:00:00.000Z"))
-    store.saveAccountTracker(id, tracking)
-    const saved = store.saveTrade(trade(id))
+    store.saveTrade(trade({ accountId: id, tradedAt: "2026-10-01T12:00:00.000Z" }))
+    store.saveAccountTracker({ id, tracker: tracking })
+    const saved = store.saveTrade(trade({ accountId: id }))
     expect(saved.currency).toBe("USD")
     expect(store.bootstrap().accountTrackers[0].balance).toBe(50250)
     store.saveTrade({
-      ...trade(id),
+      ...trade({ accountId: id }),
       id: saved.id,
-      payload: { ...trade(id).payload, pnlAmount: 400 },
+      payload: { ...trade({ accountId: id }).payload, pnlAmount: 400 },
     })
     expect(store.bootstrap().accountTrackers[0].balance).toBe(50400)
-    const second = store.addAccount("Second evaluation", "violet")
-    store.saveAccountTracker(second.id, tracking)
+    const second = store.addAccount({ name: "Second evaluation", color: "violet" })
+    store.saveAccountTracker({ id: second.id, tracker: tracking })
     store.saveTrade({
-      ...trade(second.id),
+      ...trade({ accountId: second.id }),
       id: saved.id,
-      payload: { ...trade(second.id).payload, pnlAmount: 400 },
+      payload: { ...trade({ accountId: second.id }).payload, pnlAmount: 400 },
     })
     expect(store.bootstrap().accountTrackers.find((t) => t.accountId === id)?.balance).toBe(50000)
     expect(store.bootstrap().accountTrackers.find((t) => t.accountId === second.id)?.balance).toBe(
       50400,
     )
     store.saveTrade({
-      ...trade(id),
+      ...trade({ accountId: id }),
       id: saved.id,
-      payload: { ...trade(id).payload, pnlAmount: 400 },
+      payload: { ...trade({ accountId: id }).payload, pnlAmount: 400 },
     })
     const duplicate = store.duplicateTrade(saved.id)
     expect(store.bootstrap().accountTrackers.find((t) => t.accountId === id)?.balance).toBe(50800)
     store.deleteTrade(duplicate.id)
-    store.adjustAccount(id, -200, "Payout")
+    store.adjustAccount({ id, amount: -200, reason: "Payout" })
     expect(store.bootstrap().accountTrackers[0].balance).toBe(50200)
     store.deleteTrade(saved.id)
     expect(store.bootstrap().accountTrackers[0].balance).toBe(49800)
     expect(store.bootstrap().trades).toHaveLength(1)
     expect(() =>
-      store.saveAccountTracker(id, { ...tracking, startsAt: "2026-01-01T00:00:00.000Z" }),
+      store.saveAccountTracker({
+        id,
+        tracker: { ...tracking, startsAt: "2026-01-01T00:00:00.000Z" },
+      }),
     ).toThrow("non-USD")
     store.close()
   })
@@ -150,19 +159,19 @@ describe("account tracking", () => {
   it("passes once to a linked fresh Live account without copying trades or purchase costs", async () => {
     const { store } = await open()
     const id = store.bootstrap().accounts[0].id
-    store.saveAccountTracker(id, tracking)
-    const saved = store.saveTrade(trade(id))
-    expect(() => store.saveAccountTracker(id, { ...tracking, status: "live" })).toThrow(
-      "Move to Live",
-    )
-    const data = store.passAccount(id, 50000)
+    store.saveAccountTracker({ id, tracker: tracking })
+    const saved = store.saveTrade(trade({ accountId: id }))
+    expect(() =>
+      store.saveAccountTracker({ id, tracker: { ...tracking, status: "live" } }),
+    ).toThrow("Move to Live")
+    const data = store.passAccount({ id, openingBalance: 50000 })
     expect(data.accountTrackers.find((t) => t.accountId === id)?.status).toBe("passed")
     const live = data.accountTrackers.find((t) => t.evaluationId === id)!
     expect(live).toMatchObject({ status: "live", balance: 50000, purchasePrice: 0 })
     expect(data.trades.map((t) => t.id)).toEqual([saved.id])
     expect(data.accountTrackers.reduce((sum, t) => sum + t.purchasePrice, 0)).toBe(49)
-    expect(() => store.passAccount(id, 50000)).toThrow("Only an evaluation")
-    expect(() => store.saveTrade(trade(id))).toThrow("evaluation or live")
+    expect(() => store.passAccount({ id, openingBalance: 50000 })).toThrow("Only an evaluation")
+    expect(() => store.saveTrade(trade({ accountId: id }))).toThrow("evaluation or live")
     const restored = store.importDatabase(store.exportDatabase())
     expect(restored.accountTrackers).toEqual(data.accountTrackers)
     store.close()
@@ -171,10 +180,10 @@ describe("account tracking", () => {
   it("marks an account blown only with a successfully saved trade", async () => {
     const { store } = await open()
     const id = store.bootstrap().accounts[0].id
-    store.saveAccountTracker(id, tracking)
+    store.saveAccountTracker({ id, tracker: tracking })
     const input = {
       payload: {
-        ...trade(id).payload,
+        ...trade({ accountId: id }).payload,
         markAccountBlown: true,
         outcome: "loss" as const,
         pnlAmount: -100,
@@ -197,7 +206,7 @@ describe("account tracking", () => {
   it("holds ambiguous Codex accounts for review instead of guessing the balance to update", async () => {
     const { store } = await open()
     const id = store.bootstrap().accounts[0].id
-    store.saveAccountTracker(id, tracking)
+    store.saveAccountTracker({ id, tracker: tracking })
     const payload = {
       schemaVersion: 1,
       source: "codex",
@@ -209,11 +218,12 @@ describe("account tracking", () => {
       outcome: "win",
       resultAmount: 250,
     }
-    expect(store.processCodexImport(payload).status).toBe("draft")
+    expect(store.processCodexImport({ payload }).status).toBe("draft")
     expect(store.bootstrap().accountTrackers[0].balance).toBe(50000)
     expect(
-      store.processCodexImport({ ...payload, importId: "tracker-import-explicit", accountId: id })
-        .status,
+      store.processCodexImport({
+        payload: { ...payload, importId: "tracker-import-explicit", accountId: id },
+      }).status,
     ).toBe("saved")
     expect(store.bootstrap().accountTrackers[0].balance).toBe(50250)
     store.close()

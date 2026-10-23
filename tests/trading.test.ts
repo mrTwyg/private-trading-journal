@@ -16,25 +16,25 @@ afterEach(() => vi.useRealTimers())
 describe("trade result calculations", () => {
   it("shows separate totals rather than adding USD to historical GBP", () => {
     expect(
-      formatTradePnl(
-        [
+      formatTradePnl({
+        trades: [
           { currency: "USD", pnlAmount: 250 },
           { currency: "GBP", pnlAmount: 100 },
         ] as Trade[],
-        "GBP",
-      ),
+        defaultCurrency: "GBP",
+      }),
     ).toBe("US$250.00 / £100.00")
   })
   it("turns the manually selected outcome into a signed P&L", () => {
-    expect(signedPnl("win", 250)).toBe(250)
-    expect(signedPnl("loss", 250)).toBe(-250)
-    expect(signedPnl("breakeven", 250)).toBe(0)
+    expect(signedPnl({ outcome: "win", resultAmount: 250 })).toBe(250)
+    expect(signedPnl({ outcome: "loss", resultAmount: 250 })).toBe(-250)
+    expect(signedPnl({ outcome: "breakeven", resultAmount: 250 })).toBe(0)
   })
 
   it("calculates risk-normalized return and rejects invalid risk", () => {
-    expect(calculateRMultiple(300, 150)).toBe(2)
-    expect(calculateRMultiple(-75, 150)).toBe(-0.5)
-    expect(calculateRMultiple(100, 0)).toBe(0)
+    expect(calculateRMultiple({ pnlAmount: 300, riskAmount: 150 })).toBe(2)
+    expect(calculateRMultiple({ pnlAmount: -75, riskAmount: 150 })).toBe(-0.5)
+    expect(calculateRMultiple({ pnlAmount: 100, riskAmount: 0 })).toBe(0)
   })
 
   it("aggregates monetary and outcome totals", () => {
@@ -79,19 +79,21 @@ describe("calendar ranges", () => {
   it("uses a selected calendar day with the current local time for a new trade", () => {
     vi.useFakeTimers()
     vi.setSystemTime(new Date(2026, 8, 21, 14, 35))
-    expect(defaultTradeDateTime(undefined, new Date(2026, 9, 5))).toBe("2026-10-05T14:35")
+    expect(defaultTradeDateTime({ iso: undefined, selectedDay: new Date(2026, 9, 5) })).toBe(
+      "2026-10-05T14:35",
+    )
   })
 
   it("returns seven Monday-first days for a week", () => {
     const anchor = new Date("2026-09-18T12:00:00")
-    const days = calendarDays(anchor, "week")
+    const days = calendarDays({ anchor, view: "week" })
     expect(days).toHaveLength(7)
     expect(days[0]).toEqual(startOfWeek(anchor, { weekStartsOn: 1 }))
     expect(format(days[6], "yyyy-MM-dd")).toBe("2026-09-20")
   })
 
   it("includes complete weeks around a month and handles year boundaries", () => {
-    const days = calendarDays(new Date("2026-12-15T12:00:00"), "month")
+    const days = calendarDays({ anchor: new Date("2026-12-15T12:00:00"), view: "month" })
     expect(days.length % 7).toBe(0)
     expect(days[0].getDay()).toBe(1)
     expect(days.at(-1)?.getDay()).toBe(0)

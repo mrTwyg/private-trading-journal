@@ -21,7 +21,7 @@ export function DeleteAccountDialog({
 }: {
   account: TradingAccount | null
   onClose: () => void
-  onConfirm: (account: TradingAccount, confirmationName: string) => Promise<void>
+  onConfirm: (input: { account: TradingAccount; confirmationName: string }) => Promise<void>
 }) {
   const [busy, setBusy] = useState(false)
   return (
@@ -51,7 +51,7 @@ function DeleteAccountForm({
 }: {
   account: TradingAccount
   onClose: () => void
-  onConfirm: (account: TradingAccount, confirmationName: string) => Promise<void>
+  onConfirm: (input: { account: TradingAccount; confirmationName: string }) => Promise<void>
   busy: boolean
   setBusy: (busy: boolean) => void
 }) {
@@ -65,7 +65,7 @@ function DeleteAccountForm({
         setBusy(true)
         setError("")
         try {
-          await onConfirm(account, name)
+          await onConfirm({ account, confirmationName: name })
           onClose()
         } catch (cause) {
           setError(cause instanceof Error ? cause.message : "Could not delete account.")

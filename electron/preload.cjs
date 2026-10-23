@@ -4,23 +4,21 @@ const { contextBridge, ipcRenderer } = require("electron")
 
 contextBridge.exposeInMainWorld("journalApi", {
   load: () => ipcRenderer.invoke("journal:load"),
-  createTrackedAccount: (name, color, input) =>
-    ipcRenderer.invoke("journal:create-tracked-account", name, color, input),
-  deleteAccount: (id, confirmationName) =>
-    ipcRenderer.invoke("journal:delete-account", id, confirmationName),
+  createTrackedAccount: (input) => ipcRenderer.invoke("journal:create-tracked-account", input),
+  deleteAccount: (input) => ipcRenderer.invoke("journal:delete-account", input),
   addFirm: (name) => ipcRenderer.invoke("journal:add-firm", name),
   deleteFirm: (id) => ipcRenderer.invoke("journal:delete-firm", id),
-  saveAccountTracker: (id, input) => ipcRenderer.invoke("journal:save-account-tracker", id, input),
-  passAccount: (id, balance) => ipcRenderer.invoke("journal:pass-account", id, balance),
-  adjustAccount: (id, amount, reason) =>
-    ipcRenderer.invoke("journal:adjust-account", id, amount, reason),
+  saveAccountTracker: (input) => ipcRenderer.invoke("journal:save-account-tracker", input),
+  passAccount: (input) => ipcRenderer.invoke("journal:pass-account", input),
+  adjustAccount: (input) => ipcRenderer.invoke("journal:adjust-account", input),
+  saveTrades: (input) => ipcRenderer.invoke("journal:save-trades", input),
   saveTrade: (input) => ipcRenderer.invoke("journal:save-trade", input),
   duplicateTrade: (id) => ipcRenderer.invoke("journal:duplicate-trade", id),
   deleteTrade: (id) => ipcRenderer.invoke("journal:delete-trade", id),
-  addMetadata: (type, name) => ipcRenderer.invoke("journal:add-metadata", type, name),
-  deleteMetadata: (type, id) => ipcRenderer.invoke("journal:delete-metadata", type, id),
-  addAccount: (name, color) => ipcRenderer.invoke("journal:add-account", name, color),
-  updateAccount: (id, changes) => ipcRenderer.invoke("journal:update-account", id, changes),
+  addMetadata: (input) => ipcRenderer.invoke("journal:add-metadata", input),
+  deleteMetadata: (input) => ipcRenderer.invoke("journal:delete-metadata", input),
+  addAccount: (input) => ipcRenderer.invoke("journal:add-account", input),
+  updateAccount: (input) => ipcRenderer.invoke("journal:update-account", input),
   saveProfile: (profile) => ipcRenderer.invoke("journal:save-profile", profile),
   backup: () => ipcRenderer.invoke("journal:backup"),
   restore: () => ipcRenderer.invoke("journal:restore"),

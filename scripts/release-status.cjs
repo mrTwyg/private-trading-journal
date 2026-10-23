@@ -2,7 +2,7 @@
 const { execFileSync } = require("node:child_process")
 const fs = require("node:fs")
 
-function releaseStatus(version, release, taggedVersion) {
+function releaseStatus({ version, release, taggedVersion }) {
   const assets = ["Setup", "Portable"].map((kind) => `Trading-Journal-${kind}-${version}-x64.exe`)
   if (taggedVersion && taggedVersion !== version) {
     throw new Error(
@@ -41,7 +41,7 @@ if (require.main === module) {
   const taggedVersion = tagExists
     ? JSON.parse(execFileSync("git", ["show", `${tag}:package.json`], { encoding: "utf8" })).version
     : null
-  const { shouldRelease } = releaseStatus(version, release, taggedVersion)
+  const { shouldRelease } = releaseStatus({ version, release, taggedVersion })
   fs.appendFileSync(
     process.env.GITHUB_OUTPUT,
     `version=${version}\ntag=${tag}\nshould_release=${shouldRelease}\nrelease_exists=${Boolean(release)}\nsource_ref=${tagExists || process.env.GITHUB_SHA}\n`,

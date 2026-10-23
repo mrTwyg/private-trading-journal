@@ -112,6 +112,13 @@ export type TradeFormValues = {
   noteHtml: string
 }
 
+export type TradeFormSaveInput = {
+  draft: TradeFormValues
+  image: File | null
+  removeImage: boolean
+  accountIds: string[]
+}
+
 export type CodexRequiredField =
   "tradedAt" | "symbol" | "direction" | "riskAmount" | "outcome" | "resultAmount"
 export type ImportFieldConfidence = "explicit" | "inferred" | "uncertain" | "missing"
@@ -221,6 +228,11 @@ export type DesktopSaveTradeInput = {
   removeImage?: boolean
 }
 
+export type DesktopSaveTradesInput = Omit<DesktopSaveTradeInput, "id"> & {
+  accountIds: string[]
+  copyFromTradeId?: string
+}
+
 export type DesktopOperationResult = {
   canceled?: boolean
   filePath?: string
@@ -228,28 +240,36 @@ export type DesktopOperationResult = {
 }
 
 export type JournalDesktopApi = {
-  createTrackedAccount: (
-    name: string,
-    color: string,
-    input: AccountTrackerInput,
-  ) => Promise<JournalBootstrap>
-  deleteAccount: (id: string, confirmationName: string) => Promise<JournalBootstrap>
+  createTrackedAccount: (input: {
+    name: string
+    color: string
+    tracker: AccountTrackerInput
+  }) => Promise<JournalBootstrap>
+  deleteAccount: (input: { id: string; confirmationName: string }) => Promise<JournalBootstrap>
   addFirm: (name: string) => Promise<Firm>
   deleteFirm: (id: string) => Promise<void>
-  saveAccountTracker: (id: string, input: AccountTrackerInput) => Promise<JournalBootstrap>
-  passAccount: (id: string, openingBalance: number) => Promise<JournalBootstrap>
-  adjustAccount: (id: string, amount: number, reason: string) => Promise<JournalBootstrap>
+  saveAccountTracker: (input: {
+    id: string
+    tracker: AccountTrackerInput
+  }) => Promise<JournalBootstrap>
+  passAccount: (input: { id: string; openingBalance: number }) => Promise<JournalBootstrap>
+  adjustAccount: (input: {
+    id: string
+    amount: number
+    reason: string
+  }) => Promise<JournalBootstrap>
   load: () => Promise<JournalBootstrap>
   saveTrade: (input: DesktopSaveTradeInput) => Promise<Trade>
+  saveTrades: (input: DesktopSaveTradesInput) => Promise<Trade[]>
   duplicateTrade: (id: string) => Promise<Trade>
   deleteTrade: (id: string) => Promise<void>
-  addMetadata: (type: "setup" | "tag", name: string) => Promise<Setup | Tag>
-  deleteMetadata: (type: "setup" | "tag", id: string) => Promise<void>
-  addAccount: (name: string, color: string) => Promise<TradingAccount>
-  updateAccount: (
-    id: string,
-    changes: Pick<TradingAccount, "name" | "color" | "archived">,
-  ) => Promise<TradingAccount>
+  addMetadata: (input: { type: "setup" | "tag"; name: string }) => Promise<Setup | Tag>
+  deleteMetadata: (input: { type: "setup" | "tag"; id: string }) => Promise<void>
+  addAccount: (input: { name: string; color: string }) => Promise<TradingAccount>
+  updateAccount: (input: {
+    id: string
+    changes: Pick<TradingAccount, "name" | "color" | "archived">
+  }) => Promise<TradingAccount>
   saveProfile: (profile: Profile) => Promise<Profile>
   backup: () => Promise<DesktopOperationResult>
   restore: () => Promise<DesktopOperationResult>

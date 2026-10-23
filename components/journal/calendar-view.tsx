@@ -35,13 +35,13 @@ export function CalendarView({
 }) {
   const [view, setView] = useState<"week" | "month">("month")
   const [anchor, setAnchor] = useState(new Date())
-  const days = calendarDays(anchor, view)
+  const days = calendarDays({ anchor, view })
   const rangeTrades = trades.filter((trade) => {
     const date = parseISO(trade.tradedAt)
     return date >= days[0] && date <= addDays(days.at(-1)!, 1)
   })
   const summary = aggregateTrades(rangeTrades)
-  const todayTrades = tradesForDay(trades, new Date())
+  const todayTrades = tradesForDay({ trades, day: new Date() })
   const winRate = summary.count ? (summary.win / summary.count) * 100 : 0
 
   return (
@@ -52,7 +52,7 @@ export function CalendarView({
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
         <StatCard
           label={`${view === "week" ? "Weekly" : "Monthly"} net P&L`}
-          value={formatTradePnl(rangeTrades, currency)}
+          value={formatTradePnl({ trades: rangeTrades, defaultCurrency: currency })}
           meta={`${summary.count} ${summary.count === 1 ? "trade" : "trades"}`}
           tone={
             new Set(rangeTrades.map((t) => t.currency)).size > 1
@@ -77,7 +77,7 @@ export function CalendarView({
         />
         <StatCard
           label="Today"
-          value={formatTradePnl(todayTrades, currency)}
+          value={formatTradePnl({ trades: todayTrades, defaultCurrency: currency })}
           meta={`${todayTrades.length} ${todayTrades.length === 1 ? "trade" : "trades"}`}
         />
       </div>
@@ -88,7 +88,7 @@ export function CalendarView({
             <Button
               variant="ghost"
               size="icon"
-              onClick={() => setAnchor(shiftAnchor(anchor, view, -1))}
+              onClick={() => setAnchor(shiftAnchor({ anchor, view, amount: -1 }))}
               aria-label={`Previous ${view}`}
             >
               <ChevronLeft />
@@ -96,7 +96,7 @@ export function CalendarView({
             <Button
               variant="ghost"
               size="icon"
-              onClick={() => setAnchor(shiftAnchor(anchor, view, 1))}
+              onClick={() => setAnchor(shiftAnchor({ anchor, view, amount: 1 }))}
               aria-label={`Next ${view}`}
             >
               <ChevronRight />
@@ -105,7 +105,7 @@ export function CalendarView({
               Today
             </Button>
           </div>
-          <h2 className="text-lg font-semibold tracking-tight">{periodLabel(anchor, view)}</h2>
+          <h2 className="text-lg font-semibold tracking-tight">{periodLabel({ anchor, view })}</h2>
           <Tabs value={view} onValueChange={(value) => setView(value as "week" | "month")}>
             <TabsList>
               <TabsTrigger value="week">Week</TabsTrigger>
@@ -122,7 +122,7 @@ export function CalendarView({
         </div>
         <div className={cn("calendar-grid", view === "week" && "calendar-grid-week")}>
           {days.map((day) => {
-            const dayTrades = tradesForDay(trades, day)
+            const dayTrades = tradesForDay({ trades, day })
             const daySummary = aggregateTrades(dayTrades)
             const outside = view === "month" && !isSameMonth(day, anchor)
             return (
@@ -135,7 +135,7 @@ export function CalendarView({
                   outside && "calendar-day-outside",
                   isSameDay(day, new Date()) && "calendar-day-today",
                 )}
-                aria-label={`${format(day, "EEEE d MMMM")}, ${dayTrades.length} trades, ${formatTradePnl(dayTrades, currency)}`}
+                aria-label={`${format(day, "EEEE d MMMM")}, ${dayTrades.length} trades, ${formatTradePnl({ trades: dayTrades, defaultCurrency: currency })}`}
               >
                 <span className="calendar-date">{format(day, "d")}</span>
                 {dayTrades.length > 0 ? (
@@ -151,7 +151,7 @@ export function CalendarView({
                               : ""),
                       )}
                     >
-                      {formatTradePnl(dayTrades, currency)}
+                      {formatTradePnl({ trades: dayTrades, defaultCurrency: currency })}
                     </span>
                     <span className="calendar-count">
                       {dayTrades.length} {dayTrades.length === 1 ? "trade" : "trades"}

@@ -175,7 +175,7 @@ export function TradeRow({ trade, onClick }: { trade: Trade; onClick: () => void
             trade.pnlAmount < 0 && "text-[var(--loss)]",
           )}
         >
-          {formatMoney(trade.pnlAmount, trade.currency)}
+          {formatMoney({ value: trade.pnlAmount, currency: trade.currency })}
         </p>
         <p className="font-mono text-xs text-muted-foreground">{formatR(trade.rMultiple)}</p>
       </div>
