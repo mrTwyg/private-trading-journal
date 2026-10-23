@@ -84,6 +84,20 @@ The trade form offers **This trade blew the account**, followed by confirmation.
 
 Before the first upgrade to account tracking, the app saves an untouched copy beside the database named `trading-journal.sqlite.before-account-tracker-v5.bak`. Keep it and make regular backups through Settings. Older app versions should not be used to open an upgraded journal. If you use the Codex helper, reinstall it in Settings after updating so it can include account IDs; ambiguous account imports will wait for review.
 
+### Logging a copied trade across accounts
+
+In **Log trade**, tick every account that took the same trade with the same risk and monetary result, then choose **Save to N accounts**. Each account gets its own independent entry and screenshot. If any destination fails validation or the file cannot be saved, the whole batch is rejected; it does not leave half the accounts updated.
+
+For different amounts, open an existing trade and choose **Copy to accounts**. The form prefills its date/time, instrument, setup, tags, notes and screenshot. Select the destination accounts, change risk and result, then save. Opening or cancelling this form does not create trades, and saving never edits the original. Editing an existing trade still changes only that one entry.
+
+Only active accounts can receive new copies. One batch must use a single currency; there is no currency conversion. The **This trade blew the account** option is available only when saving to one account, so a multi-account save cannot accidentally mark all accounts blown through the form.
+
+### Protecting saved history
+
+Updates must not reset the journal. Before updating, keep a fresh backup through **Settings**, and retain older copies. Test builds use a separate copy of the journal and a separate Codex inbox: entries made in a preview do **not** sync to your normal journal. Never use a preview as your ongoing journal unless it is explicitly promoted after review.
+
+A backup on this computer helps recover from a bad change, but not disk failure or losing the computer. Keep an additional copy on a separate device or a private backup location you control.
+
 ## Changing the journal appearance
 
 Open **Settings → Appearance**. Theme changes preview immediately; select **Save appearance** to keep them after closing the app.

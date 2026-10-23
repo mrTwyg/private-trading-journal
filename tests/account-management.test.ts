@@ -250,6 +250,37 @@ describe("account management", () => {
 })
 
 describe("copy trades across accounts", () => {
+  it("preserves existing history, screenshots and settings when logging a new batch", async () => {
+    const { file, store } = await open()
+    const source = store.saveTrade(trade("default-account"))
+    const accounts = Array.from({ length: 5 }, (_, i) =>
+      store.addAccount(`Destination ${i}`, "cyan"),
+    )
+    const before = store.bootstrap()
+    store.saveTrades({
+      ...trade(accounts[0].id),
+      accountIds: accounts.map((account) => account.id),
+    })
+    const after = store.bootstrap()
+    expect(after.trades).toHaveLength(before.trades.length + 5)
+    expect(after.trades.find((item) => item.id === source.id)).toEqual(source)
+    for (const key of [
+      "profile",
+      "accounts",
+      "accountTrackers",
+      "firms",
+      "setups",
+      "tags",
+      "drafts",
+    ] as const)
+      expect(after[key]).toEqual(before[key])
+    store.close()
+    const reopened = await createJournalStore(file)
+    expect(reopened.bootstrap().trades.find((item) => item.id === source.id)).toEqual(source)
+    expect(reopened.bootstrap().trades).toHaveLength(before.trades.length + 5)
+    reopened.close()
+  })
+
   it("saves five independent copies with identical facts and screenshots, and persists them", async () => {
     const { file, store } = await open()
     const accounts = Array.from({ length: 5 }, (_, i) => store.addAccount(`Copy ${i}`, "cyan"))
