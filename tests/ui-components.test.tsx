@@ -77,11 +77,15 @@ describe("React Aria journal controls", () => {
     fireEvent.click(screen.getByRole("option", { name: "Topstep" }))
     fireEvent.click(screen.getByRole("button", { name: "Create account" }))
     await waitFor(() =>
-      expect(createTrackedAccount).toHaveBeenCalledWith(
-        "My evaluation",
-        "cyan",
-        expect.objectContaining({ firm: "Topstep", openingBalance: 50000, purchasePrice: 0 }),
-      ),
+      expect(createTrackedAccount).toHaveBeenCalledWith({
+        name: "My evaluation",
+        color: "cyan",
+        tracker: expect.objectContaining({
+          firm: "Topstep",
+          openingBalance: 50000,
+          purchasePrice: 0,
+        }),
+      }),
     )
     expect(onReload).toHaveBeenCalledWith(bootstrap)
   })
@@ -105,7 +109,7 @@ describe("React Aria journal controls", () => {
     expect(onClose).not.toHaveBeenCalled()
     fireEvent.click(screen.getByRole("button", { name: "Delete permanently" }))
     await waitFor(() => expect(onClose).toHaveBeenCalledOnce())
-    expect(onConfirm).toHaveBeenLastCalledWith(account, account.name)
+    expect(onConfirm).toHaveBeenLastCalledWith({ account, confirmationName: account.name })
   })
 
   it("shows the tracked balance and confirms a fresh live account before passing", async () => {
@@ -146,7 +150,9 @@ describe("React Aria journal controls", () => {
       target: { value: "51000" },
     })
     fireEvent.click(screen.getByRole("button", { name: "Confirm" }))
-    await waitFor(() => expect(passAccount).toHaveBeenCalledWith("evaluation-id", 51000))
+    await waitFor(() =>
+      expect(passAccount).toHaveBeenCalledWith({ id: "evaluation-id", openingBalance: 51000 }),
+    )
     await waitFor(() => expect(onReload).toHaveBeenCalled())
   })
   it("opens the keyboard-ready instrument list", () => {
@@ -280,10 +286,12 @@ describe("multi-account trade form", () => {
     fireEvent.click(screen.getByRole("button", { name: "Save to 2 accounts" }))
     await waitFor(() =>
       expect(onSave).toHaveBeenCalledWith(
-        expect.objectContaining({ symbol: "MNQ", riskAmount: 100, resultAmount: 250 }),
-        null,
-        false,
-        ["two", "one"],
+        expect.objectContaining({
+          draft: expect.objectContaining({ symbol: "MNQ", riskAmount: 100, resultAmount: 250 }),
+          image: null,
+          removeImage: false,
+          accountIds: ["two", "one"],
+        }),
       ),
     )
   })
@@ -304,15 +312,17 @@ describe("multi-account trade form", () => {
     await waitFor(() =>
       expect(onSave).toHaveBeenCalledWith(
         expect.objectContaining({
-          symbol: "MNQ",
-          riskAmount: 200,
-          resultAmount: 600,
-          setupDescription: "Sweep",
-          noteHtml: sourceTrade.noteHtml,
+          draft: expect.objectContaining({
+            symbol: "MNQ",
+            riskAmount: 200,
+            resultAmount: 600,
+            setupDescription: "Sweep",
+            noteHtml: sourceTrade.noteHtml,
+          }),
+          image: null,
+          removeImage: false,
+          accountIds: ["two"],
         }),
-        null,
-        false,
-        ["two"],
       ),
     )
   })

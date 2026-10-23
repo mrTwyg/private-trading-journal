@@ -118,10 +118,10 @@ export function AccountsView({
         <div className="metric-card">
           <p className="text-sm text-muted-foreground">Purchase spending · USD</p>
           <p className="mt-3 font-mono text-2xl">
-            {formatMoney(
-              trackers.reduce((sum, t) => sum + t.purchasePrice, 0),
-              "USD",
-            )}
+            {formatMoney({
+              value: trackers.reduce((sum, t) => sum + t.purchasePrice, 0),
+              currency: "USD",
+            })}
           </p>
           <p className="mt-1 text-xs text-muted-foreground">
             Includes historical evaluations; live copies cost $0
@@ -201,7 +201,9 @@ export function AccountsView({
                       {t && (
                         <div className="text-right">
                           <p className="text-xs text-muted-foreground">Balance · USD</p>
-                          <p className="font-mono text-xl">{formatMoney(t.balance, "USD")}</p>
+                          <p className="font-mono text-xl">
+                            {formatMoney({ value: t.balance, currency: "USD" })}
+                          </p>
                         </div>
                       )}
                     </div>
@@ -211,12 +213,16 @@ export function AccountsView({
                           <p>
                             Account size
                             <br />
-                            <strong>{formatMoney(t.accountSize, "USD")}</strong>
+                            <strong>
+                              {formatMoney({ value: t.accountSize, currency: "USD" })}
+                            </strong>
                           </p>
                           <p>
                             Purchase price
                             <br />
-                            <strong>{formatMoney(t.purchasePrice, "USD")}</strong>
+                            <strong>
+                              {formatMoney({ value: t.purchasePrice, currency: "USD" })}
+                            </strong>
                           </p>
                           <p>
                             Purchased
@@ -230,8 +236,8 @@ export function AccountsView({
                           </p>
                         </div>
                         <p className="text-xs text-muted-foreground">
-                          Opening {formatMoney(t.openingBalance, "USD")} · tracking from{" "}
-                          {format(new Date(t.startsAt), "d MMM yyyy HH:mm")}
+                          Opening {formatMoney({ value: t.openingBalance, currency: "USD" })} ·
+                          tracking from {format(new Date(t.startsAt), "d MMM yyyy HH:mm")}
                         </p>
                         {parent && <p className="text-sm">Passed evaluation: {parent.name}</p>}
                         {child && (
@@ -241,7 +247,8 @@ export function AccountsView({
                         )}
                         {t.adjustments.map((adjustment) => (
                           <p key={adjustment.id} className="text-xs text-muted-foreground">
-                            {formatMoney(adjustment.amount, "USD")} · {adjustment.reason} ·{" "}
+                            {formatMoney({ value: adjustment.amount, currency: "USD" })} ·{" "}
+                            {adjustment.reason} ·{" "}
                             {format(new Date(adjustment.createdAt), "d MMM yyyy")}
                           </p>
                         ))}
@@ -307,13 +314,17 @@ export function AccountsView({
                   return
                 }
                 void run(async () => {
-                  if (!editing) return api.createTrackedAccount(newName, color, draft)
-                  await api.updateAccount(editing.id, {
-                    name: newName,
-                    color,
-                    archived: editing.archived,
+                  if (!editing)
+                    return api.createTrackedAccount({ name: newName, color, tracker: draft })
+                  await api.updateAccount({
+                    id: editing.id,
+                    changes: {
+                      name: newName,
+                      color,
+                      archived: editing.archived,
+                    },
                   })
-                  return api.saveAccountTracker(editing.id, draft)
+                  return api.saveAccountTracker({ id: editing.id, tracker: draft })
                 })
               }}
             >
@@ -484,8 +495,15 @@ export function AccountsView({
                 event.preventDefault()
                 void run(() =>
                   action.type === "pass"
-                    ? api.passAccount(action.account.id, Number(action.amount))
-                    : api.adjustAccount(action.account.id, Number(action.amount), action.reason),
+                    ? api.passAccount({
+                        id: action.account.id,
+                        openingBalance: Number(action.amount),
+                      })
+                    : api.adjustAccount({
+                        id: action.account.id,
+                        amount: Number(action.amount),
+                        reason: action.reason,
+                      }),
                 )
               }}
             >
@@ -551,8 +569,8 @@ export function AccountsView({
       <DeleteAccountDialog
         account={deleting}
         onClose={() => setDeleting(null)}
-        onConfirm={async (account, name) => {
-          onReload(await api.deleteAccount(account.id, name))
+        onConfirm={async ({ account, confirmationName: name }) => {
+          onReload(await api.deleteAccount({ id: account.id, confirmationName: name }))
           toast.success("Account permanently deleted")
         }}
       />

@@ -38,11 +38,11 @@ type JournalStore = {
   deleteTrade: (id: string) => void
   importDatabase: (bytes: Uint8Array) => ReturnType<JournalStore["bootstrap"]>
   exportDatabase: () => Uint8Array
-  processCodexImport: (
-    payload: Record<string, unknown>,
-    image?: { fileName: string; contentType: string; bytes: Uint8Array } | null,
-    warning?: string,
-  ) => { status: string; importId: string; tradeId?: string; draftId?: string; warnings: string[] }
+  processCodexImport: (input: {
+    payload: Record<string, unknown>
+    image?: { fileName: string; contentType: string; bytes: Uint8Array } | null
+    warning?: string
+  }) => { status: string; importId: string; tradeId?: string; draftId?: string; warnings: string[] }
   completeDraft: (input: { draftId: string; payload: Record<string, unknown> }) => {
     id: string
     pnlAmount: number
@@ -58,14 +58,18 @@ type JournalStore = {
     motion: string
     glow: string
   }
-  addAccount: (
-    name: string,
-    color: string,
-  ) => { id: string; name: string; color: string; archived: boolean }
-  updateAccount: (
-    id: string,
-    changes: Record<string, unknown>,
-  ) => { id: string; name: string; color: string; archived: boolean }
+  addAccount: (input: { name: string; color: string }) => {
+    id: string
+    name: string
+    color: string
+    archived: boolean
+  }
+  updateAccount: (input: { id: string; changes: Record<string, unknown> }) => {
+    id: string
+    name: string
+    color: string
+    archived: boolean
+  }
   close: () => void
 }
 const { createJournalStore } = require("../electron/database.cjs") as {
@@ -118,7 +122,7 @@ describe("offline journal database", () => {
     const directory = fs.mkdtempSync(path.join(os.tmpdir(), "journal-test-"))
     temporaryDirectories.push(directory)
     const store = await createJournalStore(path.join(directory, "journal.sqlite"))
-    const account = store.addAccount("Evaluation", "violet")
+    const account = store.addAccount({ name: "Evaluation", color: "violet" })
     const trade = store.saveTrade({
       payload: {
         accountId: account.id,
@@ -136,7 +140,9 @@ describe("offline journal database", () => {
 
     expect(trade).toMatchObject({ accountId: account.id, accountName: "Evaluation" })
     expect(store.bootstrap().accounts).toHaveLength(2)
-    expect(store.updateAccount(account.id, { ...account, archived: true }).archived).toBe(true)
+    expect(
+      store.updateAccount({ id: account.id, changes: { ...account, archived: true } }).archived,
+    ).toBe(true)
     expect(() =>
       store.saveTrade({
         payload: {
@@ -282,7 +288,7 @@ describe("offline journal database", () => {
       missingFields: [],
     }
 
-    const receipt = store.processCodexImport(payload)
+    const receipt = store.processCodexImport({ payload })
     expect(receipt.status).toBe("saved")
     const data = store.bootstrap()
     expect(data.trades).toHaveLength(1)
@@ -294,7 +300,7 @@ describe("offline journal database", () => {
     expect(imported.pnlAmount).toBe(-100)
     expect(imported.rMultiple).toBe(-1)
     expect(imported.noteHtml).not.toContain("script")
-    expect(store.processCodexImport(payload).status).toBe("duplicate")
+    expect(store.processCodexImport({ payload }).status).toBe("duplicate")
     expect(store.bootstrap().trades).toHaveLength(1)
 
     store.undoImport(payload.importId)
@@ -306,8 +312,8 @@ describe("offline journal database", () => {
     const directory = fs.mkdtempSync(path.join(os.tmpdir(), "journal-test-"))
     temporaryDirectories.push(directory)
     const store = await createJournalStore(path.join(directory, "journal.sqlite"))
-    const receipt = store.processCodexImport(
-      {
+    const receipt = store.processCodexImport({
+      payload: {
         schemaVersion: 1,
         importId: "codex-draft-1",
         source: "codex",
@@ -328,9 +334,9 @@ describe("offline journal database", () => {
         },
         missingFields: ["riskAmount"],
       },
-      null,
-      "The screenshot was skipped.",
-    )
+      image: null,
+      warning: "The screenshot was skipped.",
+    })
 
     expect(receipt.status).toBe("draft")
     const pending = store.bootstrap()
@@ -365,25 +371,27 @@ describe("offline journal database", () => {
     temporaryDirectories.push(directory)
     const store = await createJournalStore(path.join(directory, "journal.sqlite"))
     const receipt = store.processCodexImport({
-      schemaVersion: 1,
-      importId: "loss-mismatch-1",
-      source: "codex",
-      createdAt: new Date().toISOString(),
-      tradedAt: "2026-09-18T10:00:00Z",
-      symbol: "MNQ",
-      direction: "long",
-      riskAmount: 100,
-      outcome: "loss",
-      resultAmount: 40,
-      fieldConfidence: {
-        tradedAt: "explicit",
-        symbol: "explicit",
-        direction: "explicit",
-        riskAmount: "explicit",
-        outcome: "explicit",
-        resultAmount: "explicit",
+      payload: {
+        schemaVersion: 1,
+        importId: "loss-mismatch-1",
+        source: "codex",
+        createdAt: new Date().toISOString(),
+        tradedAt: "2026-09-18T10:00:00Z",
+        symbol: "MNQ",
+        direction: "long",
+        riskAmount: 100,
+        outcome: "loss",
+        resultAmount: 40,
+        fieldConfidence: {
+          tradedAt: "explicit",
+          symbol: "explicit",
+          direction: "explicit",
+          riskAmount: "explicit",
+          outcome: "explicit",
+          resultAmount: "explicit",
+        },
+        missingFields: [],
       },
-      missingFields: [],
     })
     expect(receipt.status).toBe("draft")
     expect(store.bootstrap().trades).toHaveLength(0)

@@ -31,6 +31,7 @@ import type {
   TradingAccount,
   TradeDirection,
   TradeDraft as CodexDraft,
+  TradeFormSaveInput,
   TradeFormValues,
   TradeOutcome,
 } from "@/lib/types"
@@ -65,12 +66,7 @@ export function TradeFormDialog({
   trade?: Trade | null
   importDraft?: CodexDraft | null
   selectedDay?: Date | null
-  onSave: (
-    draft: TradeFormValues,
-    image: File | null,
-    removeImage: boolean,
-    accountIds: string[],
-  ) => Promise<void>
+  onSave: (input: TradeFormSaveInput) => Promise<void>
 }) {
   const source = trade ?? copyTrade
   const multiAccount = !trade && !importDraft
@@ -96,10 +92,10 @@ export function TradeFormDialog({
           ),
       )?.id ??
       "",
-    tradedAt: defaultTradeDateTime(
-      source?.tradedAt ?? importDraft?.tradedAt ?? undefined,
+    tradedAt: defaultTradeDateTime({
+      iso: source?.tradedAt ?? importDraft?.tradedAt ?? undefined,
       selectedDay,
-    ),
+    }),
     symbol: source?.symbol ?? importDraft?.symbol ?? "",
     direction: source?.direction ?? importDraft?.direction ?? "long",
     setupId:
@@ -197,8 +193,8 @@ export function TradeFormDialog({
     setSaving(true)
     setError("")
     try {
-      await onSave(
-        {
+      await onSave({
+        draft: {
           ...draft,
           symbol: draft.symbol.trim().toUpperCase(),
           resultAmount:
@@ -210,8 +206,8 @@ export function TradeFormDialog({
         },
         image,
         removeImage,
-        multiAccount ? accountIds : [draft.accountId],
-      )
+        accountIds: multiAccount ? accountIds : [draft.accountId],
+      })
       onOpenChange(false)
     } catch (saveError) {
       setError(saveError instanceof Error ? saveError.message : "Could not save the trade.")
@@ -503,10 +499,13 @@ export function TradeFormDialog({
                   />
                   <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 font-mono text-xs text-muted-foreground">
                     {formatR(
-                      calculateRMultiple(
-                        signedPnl(draft.outcome, draft.resultAmount),
-                        draft.riskAmount,
-                      ),
+                      calculateRMultiple({
+                        pnlAmount: signedPnl({
+                          outcome: draft.outcome,
+                          resultAmount: draft.resultAmount,
+                        }),
+                        riskAmount: draft.riskAmount,
+                      }),
                     )}
                   </span>
                 </div>
