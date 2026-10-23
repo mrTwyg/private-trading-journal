@@ -48,6 +48,7 @@ export function TradeFormDialog({
   setups,
   tags,
   trade,
+  copyTrade,
   importDraft,
   selectedDay,
   onSave,
@@ -60,14 +61,32 @@ export function TradeFormDialog({
   selectedAccountId: string
   setups: Setup[]
   tags: Tag[]
+  copyTrade?: Trade | null
   trade?: Trade | null
   importDraft?: CodexDraft | null
   selectedDay?: Date | null
-  onSave: (draft: TradeFormValues, image: File | null, removeImage: boolean) => Promise<void>
+  onSave: (
+    draft: TradeFormValues,
+    image: File | null,
+    removeImage: boolean,
+    accountIds: string[],
+  ) => Promise<void>
 }) {
+  const source = trade ?? copyTrade
+  const multiAccount = !trade && !importDraft
+  const availableAccounts = accounts.filter(
+    (a) =>
+      !a.archived &&
+      !trackers.some(
+        (t) => t.accountId === a.id && ["passed", "blown", "closed"].includes(t.status),
+      ),
+  )
+  const accountCurrency = (id: string) =>
+    trackers.some((t) => t.accountId === id) ? "USD" : profile.defaultCurrency
+
   const emptyDraft = (): TradeFormValues => ({
     accountId:
-      trade?.accountId ??
+      (copyTrade ? "" : trade?.accountId) ??
       accounts.find(
         (account) =>
           !account.archived &&
@@ -78,37 +97,40 @@ export function TradeFormDialog({
       )?.id ??
       "",
     tradedAt: defaultTradeDateTime(
-      trade?.tradedAt ?? importDraft?.tradedAt ?? undefined,
+      source?.tradedAt ?? importDraft?.tradedAt ?? undefined,
       selectedDay,
     ),
-    symbol: trade?.symbol ?? importDraft?.symbol ?? "",
-    direction: trade?.direction ?? importDraft?.direction ?? "long",
+    symbol: source?.symbol ?? importDraft?.symbol ?? "",
+    direction: source?.direction ?? importDraft?.direction ?? "long",
     setupId:
-      trade?.setupId ??
+      source?.setupId ??
       setups.find((setup) => setup.name.toLowerCase() === importDraft?.setupName?.toLowerCase())
         ?.id ??
       "",
-    setupDescription: trade?.setupDescription ?? importDraft?.setupDescription ?? "",
+    setupDescription: source?.setupDescription ?? importDraft?.setupDescription ?? "",
     tagIds:
-      trade?.tags.map((tag) => tag.id) ??
+      source?.tags.map((tag) => tag.id) ??
       tags
         .filter((tag) =>
           importDraft?.tagNames.some((name) => name.toLowerCase() === tag.name.toLowerCase()),
         )
         .map((tag) => tag.id),
-    riskAmount: trade?.riskAmount ?? importDraft?.riskAmount ?? 0,
-    outcome: trade?.outcome ?? importDraft?.outcome ?? "win",
+    riskAmount: source?.riskAmount ?? importDraft?.riskAmount ?? 0,
+    outcome: source?.outcome ?? importDraft?.outcome ?? "win",
     resultAmount:
-      (trade?.outcome ?? importDraft?.outcome) === "loss"
-        ? (trade?.riskAmount ?? importDraft?.riskAmount ?? 0)
-        : Math.abs(trade?.pnlAmount ?? importDraft?.resultAmount ?? 0),
-    noteHtml: trade?.noteHtml ?? importDraft?.noteHtml ?? "",
+      (source?.outcome ?? importDraft?.outcome) === "loss"
+        ? (source?.riskAmount ?? importDraft?.riskAmount ?? 0)
+        : Math.abs(source?.pnlAmount ?? importDraft?.resultAmount ?? 0),
+    noteHtml: source?.noteHtml ?? importDraft?.noteHtml ?? "",
   })
 
   const [draft, setDraft] = useState<TradeFormValues>(emptyDraft)
+  const [accountIds, setAccountIds] = useState<string[]>(() =>
+    copyTrade ? [] : [emptyDraft().accountId].filter(Boolean),
+  )
   const [image, setImage] = useState<File | null>(null)
   const [imagePreview, setImagePreview] = useState<string | null>(
-    trade?.image?.url ?? importDraft?.image?.url ?? null,
+    source?.image?.url ?? importDraft?.image?.url ?? null,
   )
   const [removeImage, setRemoveImage] = useState(false)
   const [error, setError] = useState("")
@@ -119,13 +141,14 @@ export function TradeFormDialog({
       // Reset the complete editor state whenever a different trade dialog opens.
       // eslint-disable-next-line react-hooks/set-state-in-effect
       setDraft(emptyDraft())
+      setAccountIds(copyTrade ? [] : [emptyDraft().accountId].filter(Boolean))
       setImage(null)
-      setImagePreview(trade?.image?.url ?? importDraft?.image?.url ?? null)
+      setImagePreview(source?.image?.url ?? importDraft?.image?.url ?? null)
       setRemoveImage(false)
       setError("")
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, trade?.id, importDraft?.id, selectedDay, selectedAccountId])
+  }, [open, trade?.id, copyTrade?.id, importDraft?.id, selectedDay, selectedAccountId])
 
   const handleImage = (file?: File) => {
     if (!file) return
@@ -152,13 +175,13 @@ export function TradeFormDialog({
       ?.getAsFile()
     if (!pastedImage) return
     event.preventDefault()
-    if (!draft.accountId) return setError("Choose an account.")
     handleImage(pastedImage)
   }
 
   const submit = async (event: FormEvent) => {
     event.preventDefault()
-    if (!draft.accountId) return setError("Choose an account.")
+    if (multiAccount ? !accountIds.length : !draft.accountId)
+      return setError("Choose at least one account.")
     if (!draft.symbol.trim()) return setError("Enter an instrument or symbol.")
     if (!Number.isFinite(draft.riskAmount) || draft.riskAmount <= 0)
       return setError("Risk must be greater than zero.")
@@ -187,6 +210,7 @@ export function TradeFormDialog({
         },
         image,
         removeImage,
+        multiAccount ? accountIds : [draft.accountId],
       )
       onOpenChange(false)
     } catch (saveError) {
@@ -197,16 +221,24 @@ export function TradeFormDialog({
   }
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={open} onOpenChange={(next) => !saving && onOpenChange(next)}>
       <DialogContent className="trade-dialog sm:max-w-3xl">
         <DialogHeader>
           <DialogTitle>
-            {trade ? "Edit trade" : importDraft ? "Review Codex draft" : "Log a trade"}
+            {trade
+              ? "Edit trade"
+              : copyTrade
+                ? "Copy trade to accounts"
+                : importDraft
+                  ? "Review Codex draft"
+                  : "Log a trade"}
           </DialogTitle>
           <DialogDescription>
             {importDraft
               ? "Check the highlighted facts before adding this draft to your journal."
-              : "Capture the decision while it is still fresh."}
+              : copyTrade
+                ? "Choose the destination accounts. Change risk or result before saving; the original stays unchanged."
+                : "Capture the decision while it is still fresh."}
           </DialogDescription>
         </DialogHeader>
         <form onSubmit={submit} onPaste={handlePaste} className="trade-form">
@@ -225,24 +257,67 @@ export function TradeFormDialog({
                 </div>
               )}
             <div className="grid gap-4 sm:grid-cols-2">
-              <Field label="Account" htmlFor="account">
-                <AccountSelect
-                  id="account"
-                  accounts={accounts.filter(
-                    (a) =>
-                      a.id === trade?.accountId ||
-                      !trackers.some(
-                        (t) =>
-                          t.accountId === a.id && ["passed", "blown", "closed"].includes(t.status),
-                      ),
+              {multiAccount ? (
+                <fieldset className="space-y-2 sm:col-span-2" disabled={saving}>
+                  <legend className="mb-2 text-sm font-medium">Accounts</legend>
+                  <p className="text-sm text-muted-foreground">
+                    Select every account that took this trade with the same risk and result. Each
+                    receives a separate trade. For different amounts, use Copy to accounts
+                    afterward.
+                  </p>
+                  <div className="flex max-h-40 flex-wrap gap-2 overflow-y-auto">
+                    {availableAccounts.map((account) => (
+                      <label key={account.id} className="tag-choice">
+                        <Checkbox
+                          checked={accountIds.includes(account.id)}
+                          onCheckedChange={(checked) => {
+                            const next = checked
+                              ? [...accountIds, account.id]
+                              : accountIds.filter((id) => id !== account.id)
+                            setAccountIds(next)
+                            setDraft({
+                              ...draft,
+                              accountId: next[0] ?? "",
+                              markAccountBlown: false,
+                            })
+                          }}
+                        />
+                        {account.name} ({accountCurrency(account.id)})
+                      </label>
+                    ))}
+                  </div>
+                  {!availableAccounts.length && (
+                    <p className="text-sm text-muted-foreground">
+                      Create an active account before logging a trade.
+                    </p>
                   )}
-                  value={draft.accountId}
-                  onChange={(accountId) =>
-                    setDraft({ ...draft, accountId, markAccountBlown: false })
-                  }
-                  includeAll={false}
-                />
-              </Field>
+                  <p className="text-sm text-muted-foreground" role="status">
+                    {accountIds.length} account{accountIds.length === 1 ? "" : "s"} selected.
+                    {accountIds.length > 1 &&
+                      " Editing or deleting a saved copy affects only that account."}
+                  </p>
+                </fieldset>
+              ) : (
+                <Field label="Account" htmlFor="account">
+                  <AccountSelect
+                    id="account"
+                    accounts={accounts.filter(
+                      (a) =>
+                        a.id === source?.accountId ||
+                        !trackers.some(
+                          (t) =>
+                            t.accountId === a.id &&
+                            ["passed", "blown", "closed"].includes(t.status),
+                        ),
+                    )}
+                    value={draft.accountId}
+                    onChange={(accountId) =>
+                      setDraft({ ...draft, accountId, markAccountBlown: false })
+                    }
+                    includeAll={false}
+                  />
+                </Field>
+              )}
               <Field label="Date and time" htmlFor="tradedAt">
                 <DateTimeField
                   id="tradedAt"
@@ -315,19 +390,20 @@ export function TradeFormDialog({
                   : "Tracked account: risk and result are recorded in USD."}
               </p>
             )}
-            {trackers.some(
-              (t) => t.accountId === draft.accountId && ["evaluation", "live"].includes(t.status),
-            ) && (
-              <label className="flex items-center gap-2 text-sm">
-                <Checkbox
-                  checked={Boolean(draft.markAccountBlown)}
-                  onCheckedChange={(checked) =>
-                    setDraft({ ...draft, markAccountBlown: Boolean(checked) })
-                  }
-                />
-                This trade blew the account
-              </label>
-            )}
+            {(!multiAccount || accountIds.length === 1) &&
+              trackers.some(
+                (t) => t.accountId === draft.accountId && ["evaluation", "live"].includes(t.status),
+              ) && (
+                <label className="flex items-center gap-2 text-sm">
+                  <Checkbox
+                    checked={Boolean(draft.markAccountBlown)}
+                    onCheckedChange={(checked) =>
+                      setDraft({ ...draft, markAccountBlown: Boolean(checked) })
+                    }
+                  />
+                  This trade blew the account
+                </label>
+              )}
             <Field label="Setup description" htmlFor="setup-description">
               <Textarea
                 id="setup-description"
@@ -373,7 +449,7 @@ export function TradeFormDialog({
 
             <div className="grid gap-4 sm:grid-cols-2">
               <Field
-                label={`Risked (${trade?.currency ?? (trackers.some((t) => t.accountId === draft.accountId) ? "USD" : profile.defaultCurrency)})`}
+                label={`Risked (${source?.currency ?? (trackers.some((t) => t.accountId === draft.accountId) ? "USD" : profile.defaultCurrency)})`}
                 htmlFor="riskAmount"
               >
                 <Input
@@ -535,17 +611,22 @@ export function TradeFormDialog({
           </div>
 
           <DialogFooter>
-            <Button type="button" variant="ghost" onClick={() => onOpenChange(false)}>
+            <Button
+              type="button"
+              variant="ghost"
+              disabled={saving}
+              onClick={() => onOpenChange(false)}
+            >
               Cancel
             </Button>
-            <Button type="submit" disabled={saving}>
+            <Button type="submit" disabled={saving || (multiAccount && !accountIds.length)}>
               {saving
                 ? "Saving…"
                 : trade
                   ? "Save changes"
                   : importDraft
                     ? "Add to journal"
-                    : "Add trade"}
+                    : `Save to ${accountIds.length} account${accountIds.length === 1 ? "" : "s"}`}
             </Button>
           </DialogFooter>
         </form>

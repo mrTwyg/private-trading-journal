@@ -44,7 +44,7 @@ export function TradeDetailsSheet({
   trade: Trade | null
   onClose: () => void
   onEdit: (trade: Trade) => void
-  onDuplicate: (trade: Trade) => Promise<void>
+  onDuplicate: (trade: Trade) => void
   onDelete: (trade: Trade) => void
   onZoom: (url: string | null) => void
 }) {
@@ -163,7 +163,7 @@ export function TradeDetailsSheet({
                   <Pencil /> Edit
                 </Button>
                 <Button variant="outline" onClick={() => void onDuplicate(trade)}>
-                  <Copy /> Duplicate
+                  <Copy /> Copy to accounts
                 </Button>
                 <Button
                   variant="ghost"

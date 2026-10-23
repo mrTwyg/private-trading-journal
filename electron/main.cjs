@@ -49,6 +49,7 @@ function registerHandlers() {
   ipcMain.handle("journal:adjust-account", (_event, id, amount, reason) =>
     store.adjustAccount(id, amount, reason),
   )
+  ipcMain.handle("journal:save-trades", (_event, input) => store.saveTrades(input))
   ipcMain.handle("journal:save-trade", (_event, input) => store.saveTrade(input))
   ipcMain.handle("journal:duplicate-trade", (_event, id) => store.duplicateTrade(id))
   ipcMain.handle("journal:delete-trade", (_event, id) => store.deleteTrade(id))

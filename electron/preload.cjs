@@ -14,6 +14,7 @@ contextBridge.exposeInMainWorld("journalApi", {
   passAccount: (id, balance) => ipcRenderer.invoke("journal:pass-account", id, balance),
   adjustAccount: (id, amount, reason) =>
     ipcRenderer.invoke("journal:adjust-account", id, amount, reason),
+  saveTrades: (input) => ipcRenderer.invoke("journal:save-trades", input),
   saveTrade: (input) => ipcRenderer.invoke("journal:save-trade", input),
   duplicateTrade: (id) => ipcRenderer.invoke("journal:duplicate-trade", id),
   deleteTrade: (id) => ipcRenderer.invoke("journal:delete-trade", id),

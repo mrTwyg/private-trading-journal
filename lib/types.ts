@@ -221,6 +221,11 @@ export type DesktopSaveTradeInput = {
   removeImage?: boolean
 }
 
+export type DesktopSaveTradesInput = Omit<DesktopSaveTradeInput, "id"> & {
+  accountIds: string[]
+  copyFromTradeId?: string
+}
+
 export type DesktopOperationResult = {
   canceled?: boolean
   filePath?: string
@@ -241,6 +246,7 @@ export type JournalDesktopApi = {
   adjustAccount: (id: string, amount: number, reason: string) => Promise<JournalBootstrap>
   load: () => Promise<JournalBootstrap>
   saveTrade: (input: DesktopSaveTradeInput) => Promise<Trade>
+  saveTrades: (input: DesktopSaveTradesInput) => Promise<Trade[]>
   duplicateTrade: (id: string) => Promise<Trade>
   deleteTrade: (id: string) => Promise<void>
   addMetadata: (type: "setup" | "tag", name: string) => Promise<Setup | Tag>

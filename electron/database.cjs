@@ -375,7 +375,72 @@ async function createJournalStore(databasePath) {
     }
   }
 
-  function saveTrade(input) {
+  function saveTrades(input) {
+    if (
+      input.id ||
+      !Array.isArray(input.accountIds) ||
+      !input.accountIds.length ||
+      input.accountIds.some((id) => typeof id !== "string" || !id.trim())
+    )
+      throw new Error("Choose at least one active account.")
+    const accountIds = [...new Set(input.accountIds)]
+    const source = input.copyFromTradeId ? getTrade(input.copyFromTradeId) : null
+    if (input.copyFromTradeId && !source) throw new Error("Trade not found.")
+    const profile = one(db, "SELECT default_currency FROM profile LIMIT 1")
+    const currencies = accountIds.map((id) => {
+      const tracked = one(db, "SELECT status FROM account_tracking WHERE account_id = ?", [id])
+      return tracked ? "USD" : String(profile.default_currency)
+    })
+    if (new Set(currencies).size > 1 || (source && currencies[0] !== source.currency))
+      throw new Error(
+        "Choose accounts with the same currency. Log different currencies separately with the correct amounts.",
+      )
+    const storedImage =
+      source && !input.image && !input.removeImage
+        ? one(db, "SELECT file_name, content_type, bytes FROM trade_images WHERE trade_id = ?", [
+            source.id,
+          ])
+        : null
+    const image =
+      input.image ||
+      (storedImage
+        ? {
+            fileName: storedImage.file_name,
+            contentType: storedImage.content_type,
+            bytes: storedImage.bytes,
+          }
+        : null)
+    const before = exportDatabase()
+    db.run("BEGIN")
+    let trades
+    try {
+      trades = accountIds.map((accountId) =>
+        saveTrade(
+          {
+            payload: { ...input.payload, accountId },
+            image,
+          },
+          true,
+        ),
+      )
+      db.run("COMMIT")
+    } catch (error) {
+      db.run("ROLLBACK")
+      throw error
+    }
+    try {
+      persist()
+    } catch (error) {
+      // Restore memory too, so retrying a failed disk write cannot duplicate trades.
+      db.close()
+      db = new SQL.Database(before)
+      db.run("PRAGMA foreign_keys = ON")
+      throw error
+    }
+    return trades
+  }
+
+  function saveTrade(input, inBatch = false) {
     const { payload } = input
     assertTradePayload(payload)
     const now = new Date().toISOString(),
@@ -425,7 +490,7 @@ async function createJournalStore(databasePath) {
         ? "codex"
         : "manual"
     const sourceImportId = existing ? existing.source_import_id : input.sourceImportId || null
-    db.run("BEGIN")
+    if (!inBatch) db.run("BEGIN")
     try {
       if (existing) {
         run(
@@ -498,11 +563,13 @@ async function createJournalStore(databasePath) {
       }
       if (payload.markAccountBlown)
         run(db, "UPDATE account_tracking SET status = 'blown' WHERE account_id = ?", [accountId])
-      db.run("COMMIT")
-      persist()
+      if (!inBatch) {
+        db.run("COMMIT")
+        persist()
+      }
       return getTrade(id)
     } catch (error) {
-      db.run("ROLLBACK")
+      if (!inBatch) db.run("ROLLBACK")
       throw error
     }
   }
@@ -1118,6 +1185,7 @@ async function createJournalStore(databasePath) {
   initialize()
   return {
     bootstrap,
+    saveTrades,
     saveTrade,
     duplicateTrade,
     deleteTrade,

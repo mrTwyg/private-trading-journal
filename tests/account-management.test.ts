@@ -2,10 +2,11 @@ import fs from "node:fs"
 import os from "node:os"
 import path from "node:path"
 import { createRequire } from "node:module"
-import { afterEach, describe, expect, it } from "vitest"
+import { afterEach, describe, expect, it, vi } from "vitest"
 import type {
   AccountTrackerInput,
   DesktopSaveTradeInput,
+  DesktopSaveTradesInput,
   JournalBootstrap,
   Trade,
   TradingAccount,
@@ -18,12 +19,19 @@ type Store = {
   createTrackedAccount(name: string, color: string, input: AccountTrackerInput): JournalBootstrap
   deleteAccount(id: string, confirmationName: string): JournalBootstrap
   addAccount(name: string, color: string): TradingAccount
+  updateAccount(
+    id: string,
+    changes: Pick<TradingAccount, "name" | "color" | "archived">,
+  ): TradingAccount
   addFirm(name: string): Firm
   deleteFirm(id: string): void
   saveAccountTracker(id: string, input: AccountTrackerInput): JournalBootstrap
   passAccount(id: string, balance: number): JournalBootstrap
   adjustAccount(id: string, amount: number, reason: string): JournalBootstrap
   saveTrade(input: DesktopSaveTradeInput): Trade
+  saveTrades(input: DesktopSaveTradesInput): Trade[]
+  deleteTrade(id: string): void
+  saveProfile(profile: JournalBootstrap["profile"]): void
   processCodexImport(input: Record<string, unknown>): { status: string }
   exportDatabase(): Uint8Array
   close(): void
@@ -238,5 +246,145 @@ describe("account management", () => {
     expect(reopened.bootstrap().accountTrackers[0].firm).toBe("Custom Firm")
     expect(fs.readFileSync(`${file}.before-account-management-v6.bak`)).toEqual(original)
     reopened.close()
+  })
+})
+
+describe("copy trades across accounts", () => {
+  it("saves five independent copies with identical facts and screenshots, and persists them", async () => {
+    const { file, store } = await open()
+    const accounts = Array.from({ length: 5 }, (_, i) => store.addAccount(`Copy ${i}`, "cyan"))
+    const tag = store.bootstrap().tags[0]
+    const input = trade(accounts[0].id, [tag.id])
+    const saved = store.saveTrades({
+      ...input,
+      accountIds: accounts.map((a) => a.id).concat(accounts[0].id),
+    })
+    expect(saved).toHaveLength(5)
+    expect(new Set(saved.map((t) => t.id)).size).toBe(5)
+    expect(new Set(saved.map((t) => t.image?.id)).size).toBe(5)
+    for (const copy of saved)
+      expect(copy).toMatchObject({
+        tradedAt: input.payload.tradedAt,
+        riskAmount: 100,
+        pnlAmount: 250,
+        rMultiple: 2.5,
+        noteHtml: input.payload.noteHtml,
+        tags: [tag],
+        image: { fileName: "chart.png" },
+      })
+    store.deleteTrade(saved[0].id)
+    expect(store.bootstrap().trades).toHaveLength(4)
+    store.close()
+    const reopened = await createJournalStore(file)
+    expect(reopened.bootstrap().trades).toHaveLength(4)
+    reopened.close()
+  })
+
+  it("rolls back every copy and account-status change when any destination is invalid", async () => {
+    const { file, store } = await open()
+    store.saveProfile({ ...store.bootstrap().profile, defaultCurrency: "USD" })
+    const data = store.createTrackedAccount("Evaluation", "cyan", tracking)
+    const id = data.accounts.find((a) => a.name === "Evaluation")!.id
+    const before = fs.readFileSync(file)
+    expect(() =>
+      store.saveTrades({
+        ...trade(id),
+        accountIds: [id, "missing"],
+        payload: {
+          ...trade(id).payload,
+          markAccountBlown: true,
+        },
+      }),
+    ).toThrow("active account")
+    expect(store.bootstrap().trades).toHaveLength(0)
+    expect(store.bootstrap().accountTrackers.find((t) => t.accountId === id)?.status).toBe(
+      "evaluation",
+    )
+    expect(fs.readFileSync(file)).toEqual(before)
+    expect(() => store.saveTrades({ ...trade(id), accountIds: [] })).toThrow("at least one")
+    expect(() =>
+      store.saveTrades({
+        ...trade(id),
+        accountIds: [id],
+        image: { fileName: "bad", contentType: "text/plain", bytes: new Uint8Array([1]) },
+      }),
+    ).toThrow("JPEG")
+    expect(store.bootstrap().trades).toHaveLength(0)
+    store.close()
+  })
+
+  it("copies an existing trade with edited risk/result and screenshot, without altering its source", async () => {
+    const { store } = await open()
+    const account = store.addAccount("Other", "cyan")
+    const original = store.saveTrade(trade("default-account"))
+    const [copy] = store.saveTrades({
+      payload: { ...trade(account.id).payload, riskAmount: 200, pnlAmount: 600 },
+      accountIds: [account.id],
+      copyFromTradeId: original.id,
+    })
+    expect(copy).toMatchObject({
+      accountId: account.id,
+      riskAmount: 200,
+      pnlAmount: 600,
+      rMultiple: 3,
+      tradedAt: original.tradedAt,
+      source: "manual",
+      sourceImportId: null,
+    })
+    expect(copy.image?.url).toBe(original.image?.url)
+    expect(store.bootstrap().trades.find((t) => t.id === original.id)).toEqual(original)
+    const [withoutImage] = store.saveTrades({
+      ...trade(account.id),
+      image: null,
+      removeImage: true,
+      accountIds: [account.id],
+      copyFromTradeId: original.id,
+    })
+    expect(withoutImage.image).toBeNull()
+    store.close()
+  })
+
+  it("rejects mixed currencies and inactive destinations", async () => {
+    const { store } = await open()
+    store.saveProfile({ ...store.bootstrap().profile, defaultCurrency: "GBP" })
+    const data = store.createTrackedAccount("USD", "cyan", tracking)
+    const id = data.accounts.find((a) => a.name === "USD")!.id
+    expect(() => store.saveTrades({ ...trade(id), accountIds: [id, "default-account"] })).toThrow(
+      "same currency",
+    )
+    const original = store.saveTrade(trade("default-account"))
+    expect(() =>
+      store.saveTrades({ ...trade(id), accountIds: [id], copyFromTradeId: original.id }),
+    ).toThrow("same currency")
+    store.updateAccount("default-account", {
+      name: "Default Account",
+      color: "cyan",
+      archived: true,
+    })
+    expect(() =>
+      store.saveTrades({ ...trade("default-account"), accountIds: ["default-account"] }),
+    ).toThrow("active account")
+    store.saveAccountTracker(id, { ...tracking, status: "blown" })
+    expect(() => store.saveTrades({ ...trade(id), accountIds: [id] })).toThrow("evaluation or live")
+    expect(store.bootstrap().trades).toHaveLength(1)
+    store.close()
+  })
+
+  it("restores memory after a failed disk write so a retry saves only one batch", async () => {
+    const { store } = await open()
+    const rename = vi.spyOn(fs, "renameSync").mockImplementationOnce(() => {
+      throw new Error("Disk unavailable")
+    })
+    try {
+      expect(() =>
+        store.saveTrades({ ...trade("default-account"), accountIds: ["default-account"] }),
+      ).toThrow("Disk unavailable")
+      expect(store.bootstrap().trades).toHaveLength(0)
+    } finally {
+      rename.mockRestore()
+    }
+    store.saveTrades({ ...trade("default-account"), accountIds: ["default-account"] })
+    expect(store.bootstrap().trades).toHaveLength(1)
+    store.close()
   })
 })
