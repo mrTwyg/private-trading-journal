@@ -305,6 +305,55 @@ describe("copy trades across accounts", () => {
     reopened.close()
   })
 
+  it("saves per-account results atomically and preserves them after reopening", async () => {
+    const { file, store } = await open()
+    const other = store.addAccount({ name: "Other", color: "cyan" })
+    const accountIds = ["default-account", other.id]
+    const accountResults = {
+      "default-account": { riskAmount: 100, outcome: "win" as const, pnlAmount: 250 },
+      [other.id]: { riskAmount: 75, outcome: "loss" as const, pnlAmount: -75 },
+    }
+    const input = { ...trade({ accountId: "default-account" }), accountIds, accountResults }
+    const before = fs.readFileSync(file)
+    expect(() =>
+      store.saveTrades({
+        ...input,
+        accountResults: {
+          ...accountResults,
+          [other.id]: { ...accountResults[other.id], riskAmount: 0 },
+        },
+      }),
+    ).toThrow("Risk")
+    expect(store.bootstrap().trades).toHaveLength(0)
+    expect(fs.readFileSync(file)).toEqual(before)
+    expect(() => store.saveTrades({ ...input, accountResults: {} })).toThrow(
+      "every selected account",
+    )
+    const rename = vi.spyOn(fs, "renameSync").mockImplementationOnce(() => {
+      throw new Error("Disk unavailable")
+    })
+    try {
+      expect(() => store.saveTrades(input)).toThrow("Disk unavailable")
+      expect(store.bootstrap().trades).toHaveLength(0)
+      expect(fs.readFileSync(file)).toEqual(before)
+    } finally {
+      rename.mockRestore()
+    }
+    const saved = store.saveTrades(input)
+    expect(saved[0]).toMatchObject({ riskAmount: 100, pnlAmount: 250, rMultiple: 2.5 })
+    expect(saved[1]).toMatchObject({
+      riskAmount: 75,
+      pnlAmount: -75,
+      rMultiple: -1,
+      outcome: "loss",
+    })
+    expect(saved[1].image?.url).toEqual(saved[0].image?.url)
+    store.close()
+    const reopened = await createJournalStore(file)
+    expect(reopened.bootstrap().trades).toEqual(expect.arrayContaining(saved))
+    reopened.close()
+  })
+
   it("saves five independent copies with identical facts and screenshots, and persists them", async () => {
     const { file, store } = await open()
     const accounts = Array.from({ length: 5 }, (_, i) =>

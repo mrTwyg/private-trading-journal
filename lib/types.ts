@@ -117,6 +117,7 @@ export type TradeFormSaveInput = {
   image: File | null
   removeImage: boolean
   accountIds: string[]
+  accountResults?: Record<string, Pick<TradeFormValues, "riskAmount" | "outcome" | "resultAmount">>
 }
 
 export type CodexRequiredField =
@@ -231,6 +232,7 @@ export type DesktopSaveTradeInput = {
 export type DesktopSaveTradesInput = Omit<DesktopSaveTradeInput, "id"> & {
   accountIds: string[]
   copyFromTradeId?: string
+  accountResults?: Record<string, Pick<DesktopTradePayload, "riskAmount" | "outcome" | "pnlAmount">>
 }
 
 export type DesktopOperationResult = {
