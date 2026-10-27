@@ -10,6 +10,8 @@ import type {
   Trade,
 } from "../lib/types"
 
+import { aggregateTrades } from "../lib/trading"
+
 const require = createRequire(import.meta.url)
 type Store = {
   bootstrap(): JournalBootstrap
@@ -75,6 +77,44 @@ const trade = ({
 })
 
 describe("account tracking", () => {
+  it("reconciles two months of trading with the opening balance and adjustments after reopening", async () => {
+    const { file, store } = await open()
+    const id = store.bootstrap().accounts[0].id
+    const other = store.addAccount({ name: "Other account", color: "violet" })
+    store.saveAccountTracker({
+      id,
+      tracker: { ...tracking, startsAt: "2026-09-01T00:00:00.000Z" },
+    })
+    for (const [tradedAt, pnlAmount] of [
+      ["2026-09-30T12:00:00.000Z", 955],
+      ["2026-10-15T12:00:00.000Z", -435],
+    ] as const) {
+      const input = trade({ accountId: id, tradedAt })
+      store.saveTrade({
+        ...input,
+        payload: {
+          ...input.payload,
+          pnlAmount,
+          riskAmount: Math.abs(pnlAmount),
+          outcome: pnlAmount < 0 ? "loss" : "win",
+        },
+      })
+    }
+    store.saveTrade(trade({ accountId: other.id }))
+    const data = store.bootstrap()
+    const pnl = aggregateTrades(data.trades.filter((t) => t.accountId === id)).pnl
+    expect(pnl).toBe(520)
+    expect(data.accountTrackers[0].balance).toBe(50000 + pnl)
+    store.adjustAccount({ id, amount: -100, reason: "Payout" })
+    store.close()
+    const reopened = await createJournalStore(file)
+    try {
+      expect(reopened.bootstrap().accountTrackers[0].balance).toBe(50000 + pnl - 100)
+    } finally {
+      reopened.close()
+    }
+  })
+
   it("backs up and migrates a v4 journal without changing any saved rows", async () => {
     const { file, store } = await open()
     const account = store.bootstrap().accounts[0]
