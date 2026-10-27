@@ -38,7 +38,9 @@ export function CalendarView({
   const days = calendarDays({ anchor, view })
   const rangeTrades = trades.filter((trade) => {
     const date = parseISO(trade.tradedAt)
-    return date >= days[0] && date <= addDays(days.at(-1)!, 1)
+    return view === "month"
+      ? isSameMonth(date, anchor)
+      : date >= days[0] && date < addDays(days.at(-1)!, 1)
   })
   const summary = aggregateTrades(rangeTrades)
   const todayTrades = tradesForDay({ trades, day: new Date() })
