@@ -470,9 +470,18 @@ export function TradeFormDialog({
                     }))
                 }
                 return (
-                  <fieldset key={accountId} className="space-y-4" disabled={saving}>
+                  <fieldset
+                    key={accountId}
+                    className={cn(
+                      "min-w-0 space-y-4",
+                      multiAccount &&
+                        accountIds.length > 1 &&
+                        "rounded-xl border border-border bg-[var(--surface-2)] p-4",
+                    )}
+                    disabled={saving}
+                  >
                     {multiAccount && accountIds.length > 1 && (
-                      <legend className="mb-3 text-sm font-medium">
+                      <legend className="px-2 text-sm font-semibold">
                         {accounts.find((a) => a.id === accountId)?.name} (
                         {accountCurrency(accountId)})
                       </legend>
